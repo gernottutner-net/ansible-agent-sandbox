@@ -1,0 +1,28 @@
+# cloud-init network config v2.
+#
+# Interfaces are matched by MAC, never by kernel name. VirtualBox NIC order and
+# Debian's predictable-naming scheme can both shift the enpXsY label; the MAC
+# is pinned by `VBoxManage modifyvm --mac-addressN` and does not move.
+version: 2
+ethernets:
+
+  # NIC1 -- NAT. Egress only (apt, pip, npm, model APIs). Address is always
+  # 10.0.2.15 inside VirtualBox's per-VM NAT, so DHCP is the only sane option.
+  nat0:
+    match:
+      macaddress: "{{ vm_nat_mac | lower | regex_replace('(..)(?=.)', '\\1:') }}"
+    dhcp4: true
+    dhcp6: false
+    dhcp4-overrides:
+      use-dns: true
+
+  # NIC2 -- host-only. Stable address for inbound SSH from the host.
+  # No gateway here on purpose: a second default route would race with NAT's
+  # and can blackhole outbound traffic.
+  hostonly0:
+    match:
+      macaddress: "{{ vm_hostonly_mac | lower | regex_replace('(..)(?=.)', '\\1:') }}"
+    dhcp4: false
+    dhcp6: false
+    addresses:
+      - "{{ vm_hostonly_ip }}/{{ vm_hostonly_prefix }}"

@@ -1,0 +1,18 @@
+---
+# Create and start one VirtualBox VM per targeted host, on the VirtualBox
+# host itself. The calling play runs with connection: local and without
+# facts; see playbooks/provision.yml.
+#
+# Preflight and the image download run once, for every targeted VM; the
+# creation runs per host, with every value from that host's variables.
+
+- name: Run VirtualBox host preflight checks
+  ansible.builtin.include_tasks: preflight.yml
+  run_once: true
+
+- name: Download and verify the shared base image
+  ansible.builtin.include_tasks: fetch_image.yml
+  run_once: true
+
+- name: Create the VM
+  ansible.builtin.include_tasks: create_vm.yml

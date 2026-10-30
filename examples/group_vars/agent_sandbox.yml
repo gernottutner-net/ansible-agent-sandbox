@@ -1,0 +1,61 @@
+---
+# Policy for hosts running the sandbox. The roles carry defaults; this file
+# carries the policy. Copy it into your inventory's group_vars/.
+
+sandbox_user: agent
+
+# Must not overlap any other user's range on the host (the podman role asserts
+# this). Effectively immutable once containers exist.
+sandbox_subuid_start: 200000
+sandbox_subuid_count: 65536
+
+# Default-deny egress for the sandbox user. The listen address is per host
+# (egress_proxy_address in host_vars).
+egress_proxy_port: 3128
+
+# Squid dstdomain: a leading dot matches the domain and its subdomains.
+# This is "which organisations can the agent talk to", not "can it leak":
+# a gist on github.com is as reachable as the rest of github.com.
+egress_allowlist:
+  - .debian.org             # apt inside the image
+  - .npmjs.org              # npm
+  - .pypi.org               # pip / uv
+  - .files.pythonhosted.org
+  - .github.com
+  - .githubusercontent.com
+  - .anthropic.com          # model API
+  - platform.claude.com     # Claude Code login
+  - deb.nodesource.com      # Node in the image build
+  - .docker.io              # image pulls: registry-1., auth.
+  - .cloudflare.docker.com
+  - docs.python.org         # documentation the agent may read
+  - developer.mozilla.org
+  - docs.ansible.com
+
+# ---- agentbox: the image and the launcher's run limits ---------------------
+# The limits are rendered into /usr/local/bin/agentbox, not read at run time.
+sandbox_memory: 2g        # --memory-swap gets the same value: no swap
+sandbox_cpus: 1.5
+sandbox_pids_limit: 256
+
+# One tag, one build: the role refuses to rebuild an existing tag from a
+# changed Containerfile. Updating Claude Code means bumping both.
+sandbox_image_tag: "0.1.0"
+agentbox_claude_code_version: "2.1.284"
+
+# Claude Code's own switches, set in every session. Telemetry off: its
+# Datadog intake stays denied by Squid, and without the attempts the
+# TCP_DENIED lines show only hosts that matter. Error reporting stays on;
+# its host is allowlisted once the log shows it.
+agentbox_claude_env:
+  DISABLE_TELEMETRY: "1"
+
+# Unattended sessions get no claude.ai connectors: they act on the account
+# (Claude Docs: create, edit, delete) with nobody to answer a prompt.
+# Interactive sessions keep them.
+agentbox_auto_claude_env:
+  ENABLE_CLAUDEAI_MCP_SERVERS: "false"
+
+# npm's cache. Without it, npm install fails in the sandbox on ~/.npm/_cacache.
+agentbox_sandbox_allow_write:
+  - "/home/{{ agentbox_image_user }}/.npm"

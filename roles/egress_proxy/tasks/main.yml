@@ -1,0 +1,256 @@
+---
+# Default-deny egress for the sandbox user. Squid decides which hosts are
+# reachable; an nftables rule on the sandbox uid makes Squid the only route.
+#
+# This is the one sandbox role that writes firewall rules on a host Ansible
+# reaches over the network. The rule matches the sandbox uid only and the chain
+# policy stays accept, so root, sshd, `ansible` and Squid (user proxy) are not
+# affected. Everything is validated before it is loaded.
+
+- name: Assert the proxy address is one of this host's own
+  ansible.builtin.assert:
+    that:
+      - egress_proxy_address is defined
+      - egress_proxy_address in ansible_all_ipv4_addresses
+      - not egress_proxy_address.startswith('127.')
+    fail_msg: >-
+      egress_proxy_address is {{ egress_proxy_address | default('unset') }};
+      it must be a non-loopback IPv4 address of this host
+      ({{ ansible_all_ipv4_addresses | join(', ') }}). Set it in host_vars.
+      A rootless container cannot reach the host's loopback through pasta.
+    success_msg: "Squid will listen on {{ egress_proxy_address }}:{{ egress_proxy_port }}"
+
+- name: Look up the sandbox user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ sandbox_user }}"
+  check_mode: false
+
+- name: Record the sandbox uid and the proxy URL
+  ansible.builtin.set_fact:
+    _sandbox_uid: "{{ getent_passwd[sandbox_user][1] }}"
+    _egress_proxy_url: "http://{{ egress_proxy_address }}:{{ egress_proxy_port }}"
+
+# ---- Squid: the allowlist ---------------------------------------------------
+
+- name: Install Squid
+  ansible.builtin.apt:
+    name: squid
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# On a first --check run Squid is not installed yet and there is nothing to
+# edit; the Squid configuration is then skipped rather than failed.
+- name: Check for squid.conf
+  ansible.builtin.stat:
+    path: /etc/squid/squid.conf
+  register: _squid_conf
+
+- name: Configure Squid
+  when: _squid_conf.stat.exists
+  block:
+    # Debian's squid 6 places its conf.d include AFTER the stock
+    # "http_access allow localhost" (and after the to_localhost/to_linklocal
+    # denies, which is where we want them). Sandbox traffic never comes from
+    # localhost, but relying on that would tie the allowlist's integrity to the
+    # listen address. Nothing on the host uses Squid via localhost, so the
+    # stock allow goes.
+    - name: Disable Squid's stock "allow localhost"
+      ansible.builtin.lineinfile:
+        path: /etc/squid/squid.conf
+        regexp: '^#?\s*http_access allow localhost$'
+        line: "# http_access allow localhost   # disabled by Ansible (roles/egress_proxy)"
+        validate: squid -k parse -f %s
+      register: _squid_localhost
+      notify: Reload squid
+
+    # Squid stops at the first matching http_access line. The drop-in's
+    # "deny all" is only final if the include comes before the stock allows.
+    - name: Find the conf.d include and the http_access allows in squid.conf
+      ansible.builtin.command: >-
+        grep -nE '^(include /etc/squid/conf\.d/|http_access allow)' /etc/squid/squid.conf
+      register: _squid_order
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Assert the conf.d include precedes the stock http_access allows
+      vars:
+        # "allow localhost manager" is followed by "deny manager" and cannot
+        # match sandbox traffic, which never comes from localhost.
+        _first: >-
+          {{ _squid_order.stdout_lines
+             | reject('search', 'http_access allow localhost manager$')
+             | first | default('') }}
+      ansible.builtin.assert:
+        that: "_first is search(':include /etc/squid/conf.d/')"
+        fail_msg: >-
+          In /etc/squid/squid.conf "{{ _first }}" comes before the conf.d
+          include, so the sandbox drop-in's "deny all" would not be final.
+          Full list: {{ _squid_order.stdout_lines | join(' | ') }}
+        success_msg: "conf.d include precedes the stock http_access allows"
+      # Under --check the grep still sees the line the task above would disable.
+      when: not (ansible_check_mode and _squid_localhost is changed)
+
+    # Debian's squid.conf listens on the wildcard. Replacing that line rather
+    # than adding one in the drop-in: a second http_port on the same port
+    # would collide with the wildcard bind.
+    - name: Bind Squid to the proxy address only
+      ansible.builtin.lineinfile:
+        path: /etc/squid/squid.conf
+        regexp: '^http_port\s'
+        line: "http_port {{ egress_proxy_address }}:{{ egress_proxy_port }}"
+        validate: squid -k parse -f %s
+      notify: Restart squid
+
+    - name: Write the allowlist
+      ansible.builtin.template:
+        src: agent-allowlist.txt.j2
+        dest: "{{ egress_squid_allowlist_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload squid
+
+    - name: Write the sandbox access rules
+      ansible.builtin.template:
+        src: squid-agent-sandbox.conf.j2
+        dest: "{{ egress_squid_dropin }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload squid
+
+- name: Ensure the squid unit drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/squid.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Start Squid only once the network is online
+  ansible.builtin.template:
+    src: squid-wait-online.conf.j2
+    dest: /etc/systemd/system/squid.service.d/wait-online.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart squid
+
+- name: Ensure Squid is enabled and running
+  ansible.builtin.systemd_service:
+    name: squid
+    state: started
+    enabled: true
+  when: _squid_conf.stat.exists
+
+# ---- nftables: the boundary -------------------------------------------------
+
+- name: Ensure the nftables drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ egress_nft_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write the sandbox egress rule
+  ansible.builtin.template:
+    src: agent-sandbox.nft.j2
+    dest: "{{ egress_nft_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    # Checks the ruleset against the kernel without loading it.
+    validate: nft -c -f %s
+  notify: Reload egress rule
+
+- name: Install the unit that loads the egress rule
+  ansible.builtin.template:
+    src: egress.service.j2
+    dest: "/etc/systemd/system/{{ egress_nft_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _egress_unit
+  notify: Reload egress rule
+
+# Under --check a unit that was only "written" does not exist yet.
+- name: Ensure the egress rule is loaded now and at boot
+  ansible.builtin.systemd_service:
+    name: "{{ egress_nft_unit }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: not (ansible_check_mode and _egress_unit is changed)
+
+# ---- Podman: use the proxy ----------------------------------------------------
+
+- name: Hand the proxy to rootless Podman
+  ansible.builtin.template:
+    src: containers.conf.j2
+    dest: "{{ egress_containers_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Apply Squid and nftables changes before verifying them
+  ansible.builtin.meta: flush_handlers
+
+# ---- verification -------------------------------------------------------------
+
+- name: Read the loaded egress table
+  ansible.builtin.command: "nft list table inet {{ egress_nft_table }}"
+  register: _egress_table
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the uid rule is loaded
+  ansible.builtin.assert:
+    that:
+      - "'meta skuid ' ~ _sandbox_uid ~ ' ip daddr ' ~ egress_proxy_address in _egress_table.stdout"
+      - "'meta skuid ' ~ _sandbox_uid ~ ' counter' in _egress_table.stdout"
+    fail_msg: "table inet {{ egress_nft_table }} lacks the uid {{ _sandbox_uid }} rules: {{ _egress_table.stdout }}"
+    success_msg: "uid {{ _sandbox_uid }} may reach {{ _egress_proxy_url }} and nothing else"
+  when: _egress_table.stdout is defined
+
+# The three probes run as the sandbox user on the host, where the same uid rule
+# applies as to its containers. The last one is the test that matters: a
+# default-deny never observed denying anything is not a default-deny.
+- name: Probe egress as the sandbox user
+  ansible.builtin.command:
+    argv: "{{ ['curl', '-sS', '-o', '/dev/null', '--max-time', '10'] + item.args }}"
+  become_user: "{{ sandbox_user }}"
+  loop:
+    - name: allowed
+      args: ["--proxy", "{{ _egress_proxy_url }}", "{{ egress_probe_allowed_url }}"]
+    - name: denied
+      args: ["--proxy", "{{ _egress_proxy_url }}", "{{ egress_probe_denied_url }}"]
+    - name: bypass
+      args: ["--noproxy", "*", "{{ egress_probe_bypass_url }}"]
+  loop_control:
+    label: "{{ item.name }}"
+  register: _egress_probes
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the allowlist allows, denies, and cannot be bypassed
+  vars:
+    _probe: "{{ dict(_egress_probes.results | map(attribute='item.name') | zip(_egress_probes.results)) }}"
+  ansible.builtin.assert:
+    that:
+      - _probe.allowed.rc == 0
+      - _probe.denied.rc != 0 and '403' in _probe.denied.stderr
+      - _probe.bypass.rc != 0
+    fail_msg: >-
+      allowed ({{ egress_probe_allowed_url }}): rc {{ _probe.allowed.rc }} {{ _probe.allowed.stderr }};
+      denied ({{ egress_probe_denied_url }}): rc {{ _probe.denied.rc }} {{ _probe.denied.stderr }};
+      bypass ({{ egress_probe_bypass_url }}): rc {{ _probe.bypass.rc }} {{ _probe.bypass.stderr }}.
+      Expected rc 0, a Squid 403, and a failure.
+    success_msg: >-
+      {{ egress_probe_allowed_url }} allowed, {{ egress_probe_denied_url }} refused
+      by Squid, direct {{ egress_probe_bypass_url }} blocked ({{ _probe.bypass.stderr | trim }})
+  when: not ansible_check_mode

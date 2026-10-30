@@ -1,0 +1,20 @@
+---
+# Tear down sandbox VMs, on the VirtualBox host. Refuses the whole group
+# without -e destroy_all=yes, and asks per VM without -e destroy_confirm=yes.
+#
+#   ansible-playbook tutner.agent_sandbox.destroy --limit sandbox-vm
+#   ansible-playbook tutner.agent_sandbox.destroy --limit sandbox-vm -e destroy_confirm=yes
+
+- name: Destroy VirtualBox VMs
+  hosts: agent_sandbox
+  gather_facts: false
+  connection: local
+  become: false
+  vars:
+    ansible_become: false
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  tasks:
+    - name: Destroy the VM
+      ansible.builtin.include_role:
+        name: tutner.agent_sandbox.virtualbox_vm
+        tasks_from: destroy.yml

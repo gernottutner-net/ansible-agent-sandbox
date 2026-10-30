@@ -1,0 +1,26 @@
+---
+# Snapshots of the sandbox VMs, on the VirtualBox host.
+#
+#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm
+#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm -e snapshot_action=take
+#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm -e snapshot_action=take -e snapshot_name=pre-session
+#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm -e snapshot_action=restore -e snapshot_name=pre-session
+#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm -e snapshot_action=delete -e snapshot_name=pre-session
+#
+# The cheap way back to a known-good VM after a session you do not trust.
+# Retention and the recorded baseline are explained in tasks/snapshot.yml
+# of the virtualbox_vm role and in docs/virtualbox.md.
+
+- name: Manage VirtualBox VM snapshots
+  hosts: agent_sandbox
+  gather_facts: false
+  connection: local
+  become: false
+  vars:
+    ansible_become: false
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  tasks:
+    - name: Run the snapshot action
+      ansible.builtin.include_role:
+        name: tutner.agent_sandbox.virtualbox_vm
+        tasks_from: snapshot.yml

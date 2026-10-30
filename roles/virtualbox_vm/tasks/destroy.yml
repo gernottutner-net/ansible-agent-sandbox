@@ -1,0 +1,74 @@
+---
+# Tear down one VM with all its disks and snapshots. Called from
+# playbooks/destroy.yml, which runs on the VirtualBox host. Because this is
+# destructive it refuses to run against the whole group without an explicit
+# opt-in (destroy_all), and asks before each VM unless destroy_confirm is set.
+- name: Refuse to destroy the entire group without an explicit opt-in
+  ansible.builtin.assert:
+    that: "(ansible_play_hosts | length) == 1 or (destroy_all | bool)"
+    fail_msg: >-
+      This would destroy {{ ansible_play_hosts | length }} VMs
+      ({{ ansible_play_hosts | join(', ') }}). Narrow it with --limit <host>,
+      or pass -e destroy_all=yes if you really mean all of them.
+  run_once: true
+
+- name: "[{{ vm_name }}] Query VM state"
+  ansible.builtin.command:
+    argv: [VBoxManage, showvminfo, "{{ vm_name }}", --machinereadable]
+  register: _vminfo
+  changed_when: false
+  failed_when: false
+
+- name: "[{{ vm_name }}] Report nothing to do"
+  ansible.builtin.debug:
+    msg: "VM '{{ vm_name }}' does not exist -- nothing to destroy."
+  when: _vminfo.rc != 0
+
+- name: Confirm destruction interactively when not pre-confirmed
+  ansible.builtin.pause:
+    prompt: |
+
+      About to PERMANENTLY DELETE VM '{{ vm_name }}' and all of its disks
+      and snapshots. This cannot be undone.
+
+      Press Ctrl-C then A to abort, or Enter to proceed
+  when:
+    - _vminfo.rc == 0
+    - not (destroy_confirm | bool)
+
+- name: "[{{ vm_name }}] Power off the VM if it is running"
+  ansible.builtin.command:
+    argv: [VBoxManage, controlvm, "{{ vm_name }}", poweroff]
+  when:
+    - _vminfo.rc == 0
+    - "'VMState=\"running\"' in _vminfo.stdout"
+  changed_when: true
+
+- name: "[{{ vm_name }}] Allow the VirtualBox session to close"
+  ansible.builtin.wait_for:
+    timeout: 5
+  when:
+    - _vminfo.rc == 0
+    - "'VMState=\"running\"' in _vminfo.stdout"
+
+# --delete-all removes the .vbox, attached disks and the seed ISO.
+# Plain --delete leaves media behind that then block a later re-create with
+# a UUID-already-registered error.
+- name: "[{{ vm_name }}] Unregister and delete the VM with all its media"
+  ansible.builtin.command:
+    argv: [VBoxManage, unregistervm, "{{ vm_name }}", --delete-all]
+  when: _vminfo.rc == 0
+  changed_when: true
+
+- name: "[{{ vm_name }}] Remove leftover build artefacts"
+  ansible.builtin.file:
+    path: "{{ vm_build_dir }}/{{ vm_name }}"
+    state: absent
+  when: _vminfo.rc == 0
+
+- name: "[{{ vm_name }}] Report completion"
+  ansible.builtin.debug:
+    msg: >-
+      VM '{{ vm_name }}' destroyed. The shared base image cache in
+      {{ vm_image_cache_dir }} is left intact for future provisioning runs.
+  when: _vminfo.rc == 0

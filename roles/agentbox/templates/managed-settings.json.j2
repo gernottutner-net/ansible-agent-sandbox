@@ -1,0 +1,52 @@
+{#
+  Claude Code's managed settings for every agentbox session, mounted
+  read-only at {{ agentbox_managed_settings_target }}. Managed settings rank
+  above the user's, the project's and --settings, so no session can loosen
+  them. Rendered from a dict, so the output is always valid JSON.
+
+  - The Bash sandbox is on and strict. enableWeakerNestedSandbox makes it
+    bind-mount the container's /proc instead of mounting a fresh one, which
+    Podman's masked paths forbid. Claude cannot retry a blocked command
+    outside it, and a session does not start if it cannot run.
+  - Sandboxed commands run without prompts: that is what autonomous sessions
+    rest on.
+  - Writable besides /work and the temp directory: agentbox_sandbox_allow_write
+    (npm's cache), in the container's own layer.
+  - Network: the same hosts as Squid and nothing else. strictAllowlist denies
+    instead of asking, which matters in bypass mode, where every prompt is
+    answered yes.
+  - The login is kept away from commands (credentials deny) and from Claude's
+    Read and Edit tools, and Claude may not edit its own settings or the
+    project's .claude directory.
+#}
+{% set cfg = agentbox_claude_config_dir %}
+{{ {
+  'sandbox': {
+    'enabled': true,
+    'failIfUnavailable': true,
+    'allowUnsandboxedCommands': false,
+    'enableWeakerNestedSandbox': true,
+    'autoAllowBashIfSandboxed': true,
+    'filesystem': {
+      'allowWrite': agentbox_sandbox_allow_write,
+    },
+    'network': {
+      'allowedDomains': _agentbox_sandbox_domains,
+      'strictAllowlist': true,
+      'allowManagedDomainsOnly': true,
+    },
+    'credentials': {
+      'files': [
+        {'path': cfg ~ '/.credentials.json', 'mode': 'deny'},
+      ],
+    },
+  },
+  'permissions': {
+    'deny': [
+      'Read(/' ~ cfg ~ '/.credentials.json)',
+      'Edit(/' ~ cfg ~ '/.credentials.json)',
+      'Edit(/' ~ cfg ~ '/settings.json)',
+      'Edit(//work/.claude/**)',
+    ],
+  },
+} | to_nice_json(indent=2) }}

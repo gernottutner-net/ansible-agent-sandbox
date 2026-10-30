@@ -1,0 +1,343 @@
+---
+# Snapshot management for one VM, parameterised by inventory host. Called
+# from playbooks/snapshot.yml, which runs on the VirtualBox host.
+#
+#   snapshot_action: list | take | restore | delete | restorecurrent
+#
+# Retention (see defaults/main.yml): with snapshot_keep: 1 and
+# snapshot_pin_root: true, `take` leaves exactly two snapshots behind: the
+# baseline at the root of the tree, and the one just taken. Everything else
+# is merged away.
+#
+# Deleting a snapshot is a DISK MERGE, not a metadata edit: VirtualBox folds
+# the doomed differencing image into its neighbour. It takes time
+# proportional to the diff and is not something to interrupt.
+#
+# No saved RAM state: any snapshot of a RUNNING VM writes a .sav holding the
+# full guest working set, so snapshot_poweroff: true shuts the guest down
+# cleanly first, takes a stopped snapshot, then restarts it if it had been
+# running.
+- name: Validate the requested action
+  ansible.builtin.assert:
+    that: "snapshot_action in ['list', 'take', 'restore', 'delete', 'restorecurrent']"
+    fail_msg: >-
+      snapshot_action must be one of: list, take, restore, delete,
+      restorecurrent (got '{{ snapshot_action }}').
+
+- name: Require a snapshot name for actions that address a specific snapshot
+  ansible.builtin.assert:
+    that: "snapshot_name | length > 0"
+    fail_msg: "snapshot_action={{ snapshot_action }} requires -e snapshot_name=<name>"
+  when: snapshot_action in ['restore', 'delete']
+
+- name: "[{{ vm_name }}] Query VM state"
+  ansible.builtin.command:
+    argv: [VBoxManage, showvminfo, "{{ vm_name }}", --machinereadable]
+  register: _vminfo
+  changed_when: false
+  failed_when: false
+
+- name: "[{{ vm_name }}] Assert the VM exists"
+  ansible.builtin.assert:
+    that: "_vminfo.rc == 0"
+    fail_msg: >-
+      VM '{{ vm_name }}' does not exist. Run tutner.agent_sandbox.provision first.
+
+- name: "[{{ vm_name }}] Record whether the VM is running"
+  ansible.builtin.set_fact:
+    _vm_running: "{{ 'VMState=\"running\"' in _vminfo.stdout }}"
+
+# --- recorded baseline -------------------------------------------------
+# The baseline name is OBSERVED STATE, not configuration: it changes when
+# you re-baseline, and only this playbook knows when that happened. So it
+# lives in a generated per-host file rather than being hand-maintained in
+# group_vars, where it silently goes stale the moment a baseline is
+# renamed.
+- name: "[{{ vm_name }}] Locate this host's snapshot state file"
+  ansible.builtin.set_fact:
+    _snapshot_state_file: "{{ playbook_dir }}/state/{{ inventory_hostname }}-snapshot.yml"
+
+- name: "[{{ vm_name }}] Check for a recorded baseline"
+  ansible.builtin.stat:
+    path: "{{ _snapshot_state_file }}"
+  register: _snapshot_state
+
+- name: "[{{ vm_name }}] Load the recorded baseline"
+  ansible.builtin.include_vars:
+    file: "{{ _snapshot_state_file }}"
+  when: _snapshot_state.stat.exists
+
+# --- list -------------------------------------------------------------
+- name: "[{{ vm_name }}] List snapshots"
+  ansible.builtin.command:
+    argv: [VBoxManage, snapshot, "{{ vm_name }}", list, --machinereadable]
+  register: _snap_list
+  changed_when: false
+  failed_when: false
+  when: snapshot_action == 'list'
+
+- name: "[{{ vm_name }}] Show snapshots"
+  ansible.builtin.debug:
+    msg: >-
+      {{ (_snap_list.rc == 0)
+         | ternary(_snap_list.stdout_lines | select('search', '^SnapshotName') | list,
+                   ['(no snapshots)']) }}
+  when: snapshot_action == 'list'
+
+# --- take -------------------------------------------------------------
+# A snapshot of a running VM always writes a .sav with the guest's entire
+# RAM working set, whether or not --live is used. For a rollback point that
+# is pure cost, so the guest is shut down cleanly first and restarted
+# afterwards. acpipowerbutton, not `controlvm poweroff`: a snapshot of an
+# unclean filesystem is worth very little.
+- name: "[{{ vm_name }}] Shut the guest down before snapshotting"
+  ansible.builtin.command:
+    argv: [VBoxManage, controlvm, "{{ vm_name }}", acpipowerbutton]
+  when:
+    - snapshot_action == 'take'
+    - _vm_running | bool
+    - snapshot_poweroff | default(true) | bool
+  changed_when: true
+
+- name: "[{{ vm_name }}] Record that this play stopped the VM"
+  ansible.builtin.set_fact:
+    _snapshot_stopped_vm: true
+  when:
+    - snapshot_action == 'take'
+    - _vm_running | bool
+    - snapshot_poweroff | default(true) | bool
+
+# Deliberately NOT a hard timeout into a forced poweroff: if the guest will
+# not shut down, taking the snapshot anyway defeats the point of asking.
+- name: "[{{ vm_name }}] Wait for the guest to stop"
+  ansible.builtin.command:
+    argv: [VBoxManage, showvminfo, "{{ vm_name }}", --machinereadable]
+  register: _poweroff_poll
+  changed_when: false
+  until: "'VMState=\"running\"' not in _poweroff_poll.stdout"
+  retries: "{{ ((snapshot_poweroff_timeout | default(120) | int) / 5) | round(0, 'ceil') | int }}"
+  delay: 5
+  when: _snapshot_stopped_vm | default(false) | bool
+
+# Split into two tasks rather than conditionally appending to argv: --live
+# is only valid against a running VM, and VBoxManage rejects it on a
+# stopped one. The live path is reached only when snapshot_poweroff is off.
+- name: "[{{ vm_name }}] Take live snapshot '{{ snapshot_name }}' (VM left running)"
+  ansible.builtin.command:
+    argv:
+      - VBoxManage
+      - snapshot
+      - "{{ vm_name }}"
+      - take
+      - "{{ snapshot_name }}"
+      - "--description={{ snapshot_description }}"
+      - --live
+  when:
+    - snapshot_action == 'take'
+    - _vm_running | bool
+    - not (snapshot_poweroff | default(true) | bool)
+  changed_when: true
+
+- name: "[{{ vm_name }}] Take snapshot '{{ snapshot_name }}' (VM stopped, no RAM state)"
+  ansible.builtin.command:
+    argv:
+      - VBoxManage
+      - snapshot
+      - "{{ vm_name }}"
+      - take
+      - "{{ snapshot_name }}"
+      - "--description={{ snapshot_description }}"
+  when:
+    - snapshot_action == 'take'
+    - not (_vm_running | bool) or (snapshot_poweroff | default(true) | bool)
+  changed_when: true
+
+# --- prune -------------------------------------------------------------
+# Runs only after a successful take, so there is never a window with no
+# snapshot at all. Take first, then delete -- never the reverse.
+- name: "[{{ vm_name }}] Re-read the snapshot tree after taking one"
+  ansible.builtin.command:
+    argv: [VBoxManage, snapshot, "{{ vm_name }}", list, --machinereadable]
+  register: _snap_after
+  changed_when: false
+  when:
+    - snapshot_action == 'take'
+    - snapshot_prune | default(false) | bool
+
+# The ROOT of the tree is the single key with no -N suffix: "SnapshotName="
+# rather than "SnapshotName-1=". For the linear chain this workflow
+# produces, the root IS the baseline -- whatever it happens to be called.
+#
+# Pinning it structurally rather than by name is what makes re-baselining
+# under a new name safe. Pinning by name alone has a nasty shape: a
+# re-baseline to an unlisted name survives its own run (it is the newest
+# snapshot) and is then silently merged away by the NEXT ordinary take,
+# one command later. Pinning the root cannot be forgotten.
+- name: "[{{ vm_name }}] Identify the root (baseline) snapshot"
+  ansible.builtin.set_fact:
+    _snapshot_root: >-
+      {{ _snap_after.stdout_lines
+         | select('match', '^SnapshotName=')
+         | map('regex_replace', '^SnapshotName="', '')
+         | map('regex_replace', '"$', '')
+         | list }}
+  when:
+    - snapshot_action == 'take'
+    - snapshot_prune | default(false) | bool
+
+# VBoxManage emits snapshots in tree order, root first, so for the linear
+# chain this workflow produces that order IS oldest-to-newest. Slicing off
+# the tail therefore leaves the oldest first, which is also the order they
+# must be deleted in: each deletion merges into its neighbour.
+- name: "[{{ vm_name }}] Work out which snapshots to prune"
+  ansible.builtin.set_fact:
+    _snapshot_prunable: >-
+      {{ (_snap_after.stdout_lines
+          | select('match', '^SnapshotName')
+          | map('regex_replace', '^SnapshotName[-0-9]*="', '')
+          | map('regex_replace', '"$', '')
+          | list)[:0 - (snapshot_keep | default(1) | int)]
+         | difference(snapshot_pinned | default([]))
+         | difference((snapshot_pin_root | default(true) | bool)
+                      | ternary(_snapshot_root | default([]), []))
+         | difference([snapshot_baseline | default('')] | select | list) }}
+  when:
+    - snapshot_action == 'take'
+    - snapshot_prune | default(false) | bool
+
+- name: "[{{ vm_name }}] Report the retention decision"
+  ansible.builtin.debug:
+    msg: >-
+      Keeping the newest {{ snapshot_keep | default(1) }};
+      recorded baseline {{ (snapshot_baseline | default('')) | ternary(snapshot_baseline | default(''), '(none)') }};
+      pinned by name {{ snapshot_pinned | default([]) }};
+      {{ (snapshot_pin_root | default(true) | bool)
+         | ternary('pinned as root ' ~ (_snapshot_root | default([]) | join(', ')),
+                   'root not pinned') }}.
+      {{ (_snapshot_prunable | length > 0)
+         | ternary('Merging away: ' ~ (_snapshot_prunable | join(', ')),
+                   'Nothing to prune.') }}
+  when:
+    - snapshot_action == 'take'
+    - snapshot_prune | default(false) | bool
+
+- name: "[{{ vm_name }}] Prune snapshots beyond the keep limit"
+  ansible.builtin.command:
+    argv: [VBoxManage, snapshot, "{{ vm_name }}", delete, "{{ item }}"]
+  loop: "{{ _snapshot_prunable | default([]) }}"
+  changed_when: true
+  when:
+    - snapshot_action == 'take'
+    - snapshot_prune | default(false) | bool
+
+- name: "[{{ vm_name }}] Restart the VM this play stopped"
+  ansible.builtin.command:
+    argv: [VBoxManage, startvm, "{{ vm_name }}", --type, headless]
+  when: _snapshot_stopped_vm | default(false) | bool
+  changed_when: true
+
+# --- restore ----------------------------------------------------------
+# VirtualBox refuses to restore into a running VM, so power it off first
+# and bring it back up afterwards if it had been running.
+- name: "[{{ vm_name }}] Power off before restore"
+  ansible.builtin.command:
+    argv: [VBoxManage, controlvm, "{{ vm_name }}", poweroff]
+  when:
+    - snapshot_action in ['restore', 'restorecurrent']
+    - _vm_running | bool
+  changed_when: true
+
+- name: "[{{ vm_name }}] Allow the session to close"
+  ansible.builtin.wait_for:
+    timeout: 5
+  when:
+    - snapshot_action in ['restore', 'restorecurrent']
+    - _vm_running | bool
+
+- name: "[{{ vm_name }}] Restore snapshot '{{ snapshot_name }}'"
+  ansible.builtin.command:
+    argv: [VBoxManage, snapshot, "{{ vm_name }}", restore, "{{ snapshot_name }}"]
+  when: snapshot_action == 'restore'
+  changed_when: true
+
+- name: "[{{ vm_name }}] Restore the current snapshot"
+  ansible.builtin.command:
+    argv: [VBoxManage, snapshot, "{{ vm_name }}", restorecurrent]
+  when: snapshot_action == 'restorecurrent'
+  changed_when: true
+
+- name: "[{{ vm_name }}] Restart the VM after restore"
+  ansible.builtin.command:
+    argv: [VBoxManage, startvm, "{{ vm_name }}", --type, headless]
+  when:
+    - snapshot_action in ['restore', 'restorecurrent']
+    - _vm_running | bool
+  changed_when: true
+
+# --- delete -----------------------------------------------------------
+- name: "[{{ vm_name }}] Delete snapshot '{{ snapshot_name }}'"
+  ansible.builtin.command:
+    argv: [VBoxManage, snapshot, "{{ vm_name }}", delete, "{{ snapshot_name }}"]
+  when: snapshot_action == 'delete'
+  changed_when: true
+
+# --- record the baseline ------------------------------------------------
+# Runs for EVERY action, so the file self-heals: delete it, run any action,
+# and it comes back correct. Written with `copy`, which compares content --
+# so an ordinary rolling `take`, which leaves the root alone, rewrites
+# nothing and leaves the worktree clean. Only a re-baseline shows up in
+# `git status`.
+#
+# Deliberately no "generated at" timestamp: it would dirty the file on
+# every run and bury the one change that matters in noise.
+- name: "[{{ vm_name }}] Re-read the snapshot tree for the state file"
+  ansible.builtin.command:
+    argv: [VBoxManage, snapshot, "{{ vm_name }}", list, --machinereadable]
+  register: _snap_final
+  changed_when: false
+  failed_when: false
+
+# The root of the tree is the baseline, by construction. An empty string
+# here is correct and meaningful: the VM has no snapshots at all.
+- name: "[{{ vm_name }}] Extract the baseline from the tree root"
+  ansible.builtin.set_fact:
+    _baseline: >-
+      {{ _snap_final.stdout_lines | select('match', '^SnapshotName=')
+         | map('regex_replace', '^SnapshotName="', '')
+         | map('regex_replace', '"$', '') | list | first | default('') }}
+    _baseline_uuid: >-
+      {{ _snap_final.stdout_lines | select('match', '^SnapshotUUID=')
+         | map('regex_replace', '^SnapshotUUID="', '')
+         | map('regex_replace', '"$', '') | list | first | default('') }}
+    _baseline_desc: >-
+      {{ _snap_final.stdout_lines | select('match', '^SnapshotDescription=')
+         | map('regex_replace', '^SnapshotDescription="', '')
+         | map('regex_replace', '"$', '') | list | first | default('') }}
+
+- name: "[{{ vm_name }}] Ensure the state directory exists"
+  ansible.builtin.file:
+    path: "{{ _snapshot_state_file | dirname }}"
+    state: directory
+    mode: "0755"
+
+# VirtualBox exposes no creation time for a snapshot through VBoxManage --
+# only its private .vbox XML carries one -- so the description stands in as
+# the human-readable marker. Set it with:
+#   -e '{"snapshot_description":"..."}'
+- name: "[{{ vm_name }}] Record the baseline"
+  ansible.builtin.copy:
+    dest: "{{ _snapshot_state_file }}"
+    mode: "0644"
+    content: |
+      ---
+      # GENERATED by tutner.agent_sandbox.snapshot -- do not edit by hand.
+      # Rewritten on every run of that playbook; changes only when the
+      # baseline does, i.e. on a re-baseline. See "Re-baselining" in
+      # docs/virtualbox.md of the collection.
+      #
+      # The baseline is the ROOT of the {{ vm_name }} snapshot tree. It is
+      # loaded back in as an additional pinned name, so retention protects
+      # it by name as well as by position (snapshot_pin_root).
+      snapshot_baseline: "{{ _baseline }}"
+      snapshot_baseline_uuid: "{{ _baseline_uuid }}"
+      snapshot_baseline_description: "{{ _baseline_desc }}"

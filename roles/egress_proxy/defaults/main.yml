@@ -1,0 +1,39 @@
+---
+# Default-deny egress for the sandbox user: Squid holds the allowlist, an
+# nftables rule on the sandbox uid makes Squid the only way out. The policy
+# values live in your inventory (see examples/group_vars/agent_sandbox.yml).
+
+# Shared with roles/podman; the policy value lives in group_vars.
+sandbox_user: agent
+
+# The host address Squid listens on. Host-specific, so it has no default here:
+# set it in host_vars. It must be a non-loopback address of the host itself --
+# pasta does not reach the host's loopback from inside a container, and it
+# does not reach the address of the default-route interface either, because
+# the container carries a copy of that one as its own.
+# egress_proxy_address: 192.168.56.20
+egress_proxy_port: 3128
+
+# Squid dstdomain syntax: a leading dot matches the domain and its subdomains,
+# no dot matches that exact host. Empty means Squid refuses everything.
+egress_allowlist: []
+
+egress_squid_dropin: /etc/squid/conf.d/agent-sandbox.conf
+egress_squid_allowlist_path: /etc/squid/agent-allowlist.txt
+
+# The role owns this one nftables table and nothing else. It is loaded by a
+# unit of its own, not through /etc/nftables.conf, whose stock content starts
+# with `flush ruleset`.
+egress_nft_table: agent_sandbox
+egress_nft_path: /etc/nftables.d/agent-sandbox.nft
+egress_nft_unit: agent-sandbox-egress.service
+
+# Hands the proxy to rootless Podman: to the engine (pulls, builds) and to
+# every container it starts.
+egress_containers_dropin: /etc/containers/containers.conf.d/70-egress-proxy.conf
+
+# Used by the verification at the end of the role. The allowed probe needs the
+# internet; the denied and the bypass probes do not.
+egress_probe_allowed_url: https://deb.debian.org/
+egress_probe_denied_url: https://example.com/
+egress_probe_bypass_url: https://1.1.1.1/

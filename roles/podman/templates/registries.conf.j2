@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+# Drop-in; /etc/containers/registries.conf stays as the package shipped it.
+# Every image reference in this repo is fully qualified anyway -- this is so an
+# interactive `podman pull` behaves as expected.
+
+unqualified-search-registries = [{{ podman_unqualified_search_registries | map('to_json') | join(', ') }}]

@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+# Squid binds {{ egress_proxy_address }}, not the wildcard, so it must not start
+# before that address exists.
+
+[Unit]
+Wants=network-online.target
+After=network-online.target

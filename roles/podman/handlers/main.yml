@@ -1,0 +1,10 @@
+---
+# A new subuid/subgid range orphans existing rootless storage. On a fresh user
+# this is a harmless no-op; on a used one it is what makes the images usable
+# again.
+- name: Migrate rootless Podman storage
+  ansible.builtin.command: podman system migrate
+  become_user: "{{ sandbox_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
+  when: _sandbox_uid is defined

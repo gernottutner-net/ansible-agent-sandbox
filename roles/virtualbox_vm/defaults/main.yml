@@ -1,0 +1,129 @@
+---
+# The VirtualBox VM and its cloud-init seed. Nothing here is read by the
+# sandbox roles; they only see a Debian 13 host over SSH.
+
+# ---- Per host (set in host_vars) -------------------------------------------
+# Required, no default: vm_nat_mac, vm_hostonly_mac (12 hex digits, no
+# separators, unique across VMs), vm_hostonly_ip, vm_ssh_public_key_file.
+vm_name: "{{ inventory_hostname }}"
+vm_hostname: "{{ vm_name }}"
+
+# Optional domain for the guest's FQDN in cloud-init. Empty: hostname only.
+vm_domain: ""
+
+# ---- Base image ------------------------------------------------------------
+# Debian 13 (trixie) generic cloud image. "generic" (not "genericcloud")
+# carries drivers for bare-metal-ish virtual hardware, which is what
+# VirtualBox's emulated AHCI/e1000 devices look like to the guest.
+vm_image_url: "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2"
+vm_image_checksum_url: "https://cloud.debian.org/images/cloud/trixie/latest/SHA512SUMS"
+vm_image_filename: "debian-13-generic-amd64.qcow2"
+vm_image_cache_dir: "{{ lookup('env', 'HOME') }}/.cache/ansible-vbox-images"
+
+# ---- VirtualBox hardware defaults (override per host in host_vars) ---------
+# Sized for one sandbox session: a 2 GB container plus Squid.
+vm_memory_mb: 6144
+vm_cpus: 4
+vm_disk_size: "40G"          # qemu-img syntax; resized before VMDK conversion
+vm_vram_mb: 16
+
+# GUI metadata label only -- it does not install, select or constrain the guest
+# OS. The actual guest is Debian 13 (trixie), determined solely by
+# vm_image_url above.
+#
+# VirtualBox 7.0.26 has no Debian13_64 type (its list stops at Debian12_64), so
+# the version-neutral "Debian_64" is used rather than mislabelling a trixie
+# guest as bookworm in the GUI. The hardware hints attached to this type
+# (128 MB RAM, 1 CPU) are all overridden explicitly by modifyvm/storagectl in
+# tasks/register_vm.yml, so the choice has no runtime effect.
+vm_ostype: "Debian_64"
+
+vm_storage_controller: "SATA"
+vm_storage_controller_type: "IntelAhci"
+
+# e1000 rather than virtio: the Debian generic image drives it without any
+# initrd fiddling, and VirtualBox's e1000 emulation is the better-tested path.
+vm_nic_type: "82540EM"
+
+# NIC1 = NAT for egress (apt, pip, npm, model APIs).
+# NIC2 = host-only for inbound SSH from the host at a stable static address.
+# Host-only alone would leave the guest with no route off the box.
+vm_hostonly_interface: "vboxnet0"
+vm_hostonly_prefix: 24
+
+# The vboxnet0 DHCP server serves 192.168.56.101-254. Static addresses must sit
+# below that range to avoid collisions.
+vm_hostonly_network_prefix: "192.168.56"
+
+# ---- cloud-init ------------------------------------------------------------
+# Stable instance-id. If this ever changes, cloud-init decides it has booted on
+# a brand new instance and re-runs its per-instance modules -- which would
+# rewrite the network config and recreate users on an existing VM. Keep it
+# constant for the life of the VM.
+vm_instance_id: "{{ vm_name }}-0001"
+
+vm_build_dir: "{{ lookup('env', 'HOME') }}/.cache/ansible-vbox-build"
+
+# Packages baked in by cloud-init so the host is manageable on first boot.
+# Deliberately minimal -- everything else is the sandbox playbook's job.
+vm_cloud_init_packages:
+  - python3
+  - sudo
+  - qemu-guest-agent
+
+# How long to wait for SSH and for `cloud-init status --wait` after startvm.
+vm_boot_timeout: 300
+vm_cloud_init_timeout: 600
+
+# ---- Snapshots ---------------------------------------------------------------
+# Consumed only by tasks/snapshot.yml (the snapshot playbook).
+snapshot_action: list
+# Timestamped default so repeated `take` runs never collide.
+snapshot_name: "auto-{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+snapshot_description: "Taken by tutner.agent_sandbox.snapshot"
+
+# Where the generated <host>-snapshot.yml with the recorded baseline goes:
+# next to your inventory, never into the installed collection.
+snapshot_state_dir: "{{ inventory_dir }}/state"
+
+#
+# Policy: exactly one rolling snapshot, plus a pinned pristine baseline. A
+# `take` merges every other snapshot away, so the chain never grows past two.
+snapshot_prune: true
+snapshot_keep: 1
+
+# Extra snapshot names never to prune. Normally EMPTY.
+#
+# The baseline does NOT belong here. It is observed state -- it changes
+# whenever you re-baseline -- so the playbook records it in
+# <snapshot_state_dir>/<host>-snapshot.yml and loads it back as
+# snapshot_baseline. Hand-maintained, it goes stale at the first re-baseline,
+# and nothing complains, because snapshot_pin_root quietly covers for it.
+#
+# Use this list only for a genuinely additional snapshot you want kept
+# indefinitely alongside the baseline and the rolling slot.
+snapshot_pinned: []
+
+# Also protect whatever is the ROOT of the snapshot tree, by position rather
+# than by name. The root is the baseline by construction, so this makes
+# re-baselining under a NEW name safe: no edit to snapshot_pinned above, and no
+# way to forget one.
+#
+# Pinning by name alone fails in a nasty shape -- a baseline taken under an
+# unlisted name survives its own run (it is the newest snapshot at that point)
+# and is then silently merged away by the next ordinary take, one command
+# later.
+snapshot_pin_root: true
+
+# Shut the guest down cleanly before taking a snapshot, then restart it if it
+# had been running. A snapshot of a RUNNING VM always writes a .sav holding the
+# entire guest working set -- 1.3 GB for a 6 GB guest, against 163 MB for the
+# disk delta it accompanied. Set false to keep the RAM state and skip the
+# stop/start cycle.
+snapshot_poweroff: true
+snapshot_poweroff_timeout: 120
+
+# ---- Teardown ----------------------------------------------------------------
+# Consumed only by tasks/destroy.yml (the destroy playbook).
+destroy_all: false
+destroy_confirm: false

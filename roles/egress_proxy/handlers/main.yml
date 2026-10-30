@@ -1,0 +1,40 @@
+---
+# Handlers run in the order they are defined, and a failed handler stops the
+# ones after it. The parse therefore always runs first and a broken config is
+# never reloaded -- which matters because force_handlers is on in ansible.cfg,
+# so handlers run even when the play has already failed.
+#
+# Under --check on a host without Squid or the egress unit there is nothing to
+# restart; the guards keep the dry run from failing on that.
+- name: Parse squid config
+  ansible.builtin.command: squid -k parse
+  changed_when: false
+  when: _squid_conf.stat.exists
+  listen:
+    - Reload squid
+    - Restart squid
+
+# A new listen address needs a restart; ACL changes only a reconfigure.
+- name: Restart squid service
+  ansible.builtin.systemd_service:
+    name: squid
+    state: restarted
+    daemon_reload: true
+  when: _squid_conf.stat.exists
+  listen: Restart squid
+
+- name: Reload squid service
+  ansible.builtin.systemd_service:
+    name: squid
+    state: reloaded
+  when: _squid_conf.stat.exists
+  listen: Reload squid
+
+# nft -f applies the file as one transaction; the table is replaced, not
+# emptied and refilled.
+- name: Reload egress rule
+  ansible.builtin.systemd_service:
+    name: "{{ egress_nft_unit }}"
+    state: reloaded
+    daemon_reload: true
+  when: not (ansible_check_mode and _egress_unit is changed)

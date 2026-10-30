@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+# One Squid dstdomain per line. Leading dot: the domain and its subdomains.
+{% for domain in egress_allowlist %}
+{{ domain }}
+{% endfor %}

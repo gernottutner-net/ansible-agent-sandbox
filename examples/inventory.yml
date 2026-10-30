@@ -1,0 +1,8 @@
+---
+# One VirtualBox VM. Copy this file, group_vars/, host_vars/ and ansible.cfg
+# into a working directory, and adapt host_vars/sandbox-vm.yml.
+all:
+  children:
+    agent_sandbox:
+      hosts:
+        sandbox-vm:

@@ -1,0 +1,5 @@
+---
+# Cloud-init gives the ansible user passwordless sudo on the VM.
+ansible_become: true
+ansible_become_method: sudo
+ansible_python_interpreter: /usr/bin/python3

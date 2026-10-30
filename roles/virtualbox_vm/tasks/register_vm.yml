@@ -1,0 +1,133 @@
+---
+# Stages 3-4: register the VM and configure its hardware.
+#
+# Split into its own file so create_vm.yml can wrap the whole sequence in a
+# block/rescue. Everything here mutates VirtualBox state, and a failure partway
+# through leaves a registered-but-unusable VM: `showvminfo` then succeeds, so
+# the idempotency check in create_vm.yml reports "already exists", skips
+# creation, and tries to boot a machine with no disk. The rescue in the caller
+# unregisters it so the next run starts clean.
+#
+# By this point the VMDK and seed ISO are already built in the scratch
+# directory, so nothing slow or network-dependent remains.
+
+# ---- Stage 3: register ----------------------------------------------------
+
+- name: "[{{ vm_name }}] Create and register the VM"
+  ansible.builtin.command:
+    argv:
+      - VBoxManage
+      - createvm
+      - "--name={{ vm_name }}"
+      # NOTE: createvm spells this --ostype while modifyvm spells the same
+      # concept --os-type. That inconsistency is real in 7.0.x.
+      - "--ostype={{ vm_ostype }}"
+      - --register
+  changed_when: true
+
+- name: "[{{ vm_name }}] Re-read VM info to locate its machine folder"
+  ansible.builtin.command:
+    argv: [VBoxManage, showvminfo, "{{ vm_name }}", --machinereadable]
+  register: _vminfo_after
+  changed_when: false
+
+- name: "[{{ vm_name }}] Derive the machine folder from the .vbox config path"
+  ansible.builtin.set_fact:
+    _vm_folder: >-
+      {{ (_vminfo_after.stdout
+          | regex_search('^CfgFile="(.*)"$', '\1', multiline=True)
+          | first) | dirname }}
+
+- name: "[{{ vm_name }}] Move the disk and seed ISO into the machine folder"
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ vm_build_dir }}/{{ vm_name }}/{{ item }}"
+      - "{{ _vm_folder }}/{{ item }}"
+  loop:
+    - "{{ vm_name }}.vmdk"
+    - "{{ vm_name }}-seed.iso"
+  changed_when: true
+
+# ---- Stage 4: hardware ----------------------------------------------------
+
+- name: "[{{ vm_name }}] Configure CPU, memory and firmware"
+  ansible.builtin.command:
+    argv:
+      - VBoxManage
+      - modifyvm
+      - "{{ vm_name }}"
+      - "--memory={{ vm_memory_mb }}"
+      - "--cpus={{ vm_cpus }}"
+      - "--vram={{ vm_vram_mb }}"
+      - "--os-type={{ vm_ostype }}"
+      - --ioapic=on          # required for any SMP guest
+      - --pae=on
+      - --rtc-use-utc=on     # Debian expects a UTC hardware clock
+      - --firmware=bios
+      - --graphicscontroller=vmsvga
+      - --audio-driver=none
+      - --boot1=disk
+      - --boot2=dvd
+      - --boot3=none
+      - --boot4=none
+  changed_when: true
+
+- name: "[{{ vm_name }}] Configure NIC1 (NAT, egress) and NIC2 (host-only, SSH)"
+  ansible.builtin.command:
+    argv:
+      - VBoxManage
+      - modifyvm
+      - "{{ vm_name }}"
+      - --nic1=nat
+      - "--nic-type1={{ vm_nic_type }}"
+      - --cable-connected1=on
+      - "--mac-address1={{ vm_nat_mac }}"
+      - --nic2=hostonly
+      # 7.0 spelling. 6.x used --hostonlyadapter2, which still aliases but is
+      # no longer what `VBoxManage modifyvm` documents.
+      - "--host-only-adapter2={{ vm_hostonly_interface }}"
+      - "--nic-type2={{ vm_nic_type }}"
+      - --cable-connected2=on
+      - "--mac-address2={{ vm_hostonly_mac }}"
+  changed_when: true
+
+- name: "[{{ vm_name }}] Add the storage controller"
+  ansible.builtin.command:
+    argv:
+      - VBoxManage
+      - storagectl
+      - "{{ vm_name }}"
+      - "--name={{ vm_storage_controller }}"
+      - --add=sata
+      - "--controller={{ vm_storage_controller_type }}"
+      - --portcount=2
+      - --bootable=on
+  changed_when: true
+
+- name: "[{{ vm_name }}] Attach the root disk"
+  ansible.builtin.command:
+    argv:
+      - VBoxManage
+      - storageattach
+      - "{{ vm_name }}"
+      - "--storagectl={{ vm_storage_controller }}"
+      - --port=0
+      - --device=0
+      - --type=hdd
+      - --nonrotational=on
+      - "--medium={{ _vm_folder }}/{{ vm_name }}.vmdk"
+  changed_when: true
+
+- name: "[{{ vm_name }}] Attach the cloud-init seed ISO"
+  ansible.builtin.command:
+    argv:
+      - VBoxManage
+      - storageattach
+      - "{{ vm_name }}"
+      - "--storagectl={{ vm_storage_controller }}"
+      - --port=1
+      - --device=0
+      - --type=dvddrive
+      - "--medium={{ _vm_folder }}/{{ vm_name }}-seed.iso"
+  changed_when: true

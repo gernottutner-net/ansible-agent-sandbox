@@ -1,0 +1,191 @@
+---
+# Create one VirtualBox VM from the shared Debian cloud image.
+#
+# Runs once per targeted host; every value comes from that host's host_vars,
+# with defaults/main.yml behind them. All VBoxManage invocations use argv lists rather than shell
+# strings because the default machine folder ("VirtualBox VMs") contains a
+# space and would otherwise need fragile quoting.
+#
+# ORDERING: the disk image and seed ISO are built in a scratch directory FIRST,
+# and `createvm` only runs once both artefacts exist. Registering the VM first
+# means any failure in the (slow, fallible) qemu-img pipeline leaves a
+# registered VM with no disk attached, which then has to be cleaned up by hand
+# before the playbook can be re-run.
+#
+# Flag spellings below are the VirtualBox 7.0 forms, verified against 7.0.26.
+
+- name: "[{{ vm_name }}] Query existing VM state"
+  ansible.builtin.command:
+    argv: [VBoxManage, showvminfo, "{{ vm_name }}", --machinereadable]
+  register: _vminfo
+  changed_when: false
+  failed_when: false
+
+- name: "[{{ vm_name }}] Record whether the VM already exists"
+  ansible.builtin.set_fact:
+    _vm_exists: "{{ _vminfo.rc == 0 }}"
+
+- name: "[{{ vm_name }}] Report skip for an existing VM"
+  ansible.builtin.debug:
+    msg: "VM '{{ vm_name }}' already exists -- creation skipped (idempotent)."
+  when: _vm_exists
+
+# ===========================================================================
+# Everything down to "Power on" is guarded on the VM not already existing.
+# ===========================================================================
+
+# ---- Stage 1: build the disk in scratch space -----------------------------
+# VBoxManage cannot resize a VMDK (modifymedium --resize rejects the format),
+# so the growth has to happen while the image is still qcow2.
+
+- name: "[{{ vm_name }}] Ensure build directory exists"
+  ansible.builtin.file:
+    path: "{{ vm_build_dir }}/{{ vm_name }}"
+    state: directory
+    mode: "0755"
+  when: not _vm_exists
+
+- name: "[{{ vm_name }}] Copy the cached base image to a per-VM working copy"
+  ansible.builtin.copy:
+    src: "{{ vm_image_cache_dir }}/{{ vm_image_filename }}"
+    dest: "{{ vm_build_dir }}/{{ vm_name }}/disk.qcow2"
+    mode: "0644"
+    remote_src: true
+  when: not _vm_exists
+
+- name: "[{{ vm_name }}] Grow the qcow2 to the requested size"
+  ansible.builtin.command:
+    argv: [qemu-img, resize, "{{ vm_build_dir }}/{{ vm_name }}/disk.qcow2", "{{ vm_disk_size }}"]
+  when: not _vm_exists
+  changed_when: true
+
+- name: "[{{ vm_name }}] Convert qcow2 to a dynamically allocated VMDK"
+  ansible.builtin.command:
+    argv:
+      - qemu-img
+      - convert
+      - -f
+      - qcow2
+      - -O
+      - vmdk
+      # monolithicSparse is dynamically allocated and is the subformat
+      # VirtualBox handles most reliably. Pinned rather than left to the
+      # qemu-img default, which has varied across releases.
+      - -o
+      - subformat=monolithicSparse
+      - "{{ vm_build_dir }}/{{ vm_name }}/disk.qcow2"
+      - "{{ vm_build_dir }}/{{ vm_name }}/{{ vm_name }}.vmdk"
+  when: not _vm_exists
+  changed_when: true
+
+- name: "[{{ vm_name }}] Remove the intermediate qcow2 working copy"
+  ansible.builtin.file:
+    path: "{{ vm_build_dir }}/{{ vm_name }}/disk.qcow2"
+    state: absent
+  when: not _vm_exists
+
+# ---- Stage 2: build the cloud-init seed ISO -------------------------------
+
+- name: "[{{ vm_name }}] Read the SSH public key to inject"
+  ansible.builtin.set_fact:
+    vm_ssh_public_key: "{{ lookup('file', vm_ssh_public_key_file | expanduser) | trim }}"
+  when: not _vm_exists
+
+- name: "[{{ vm_name }}] Assert the SSH public key looks valid"
+  ansible.builtin.assert:
+    that: "vm_ssh_public_key is match('^(ssh-|ecdsa-)')"
+    fail_msg: >-
+      {{ vm_ssh_public_key_file }} does not look like an SSH public key. Check
+      you pointed at the .pub half, not the private key.
+  when: not _vm_exists
+
+- name: "[{{ vm_name }}] Render cloud-init datasource files"
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ vm_build_dir }}/{{ vm_name }}/{{ item }}"
+    mode: "0644"
+  loop:
+    - user-data
+    - meta-data
+    - network-config
+  when: not _vm_exists
+
+- name: "[{{ vm_name }}] Build the cloud-init seed ISO"
+  ansible.builtin.command:
+    argv:
+      - cloud-localds
+      - "--network-config={{ vm_build_dir }}/{{ vm_name }}/network-config"
+      - "{{ vm_build_dir }}/{{ vm_name }}/{{ vm_name }}-seed.iso"
+      - "{{ vm_build_dir }}/{{ vm_name }}/user-data"
+      - "{{ vm_build_dir }}/{{ vm_name }}/meta-data"
+  when: not _vm_exists
+  changed_when: true
+
+# ---- Stages 3-4: register + configure hardware (atomic) -------------------
+# Wrapped in block/rescue: every task in register_vm.yml mutates VirtualBox
+# state, and a partial failure leaves a registered-but-diskless VM that
+# `showvminfo` reports as existing -- which would make the idempotency check
+# above skip creation forever and try to boot an empty machine. The rescue
+# unregisters it so the next run starts from a clean slate.
+
+- name: "[{{ vm_name }}] Register and configure the VM"
+  when: not _vm_exists
+  block:
+    - name: "[{{ vm_name }}] Run the VirtualBox registration sequence"
+      ansible.builtin.include_tasks: register_vm.yml
+
+  rescue:
+    - name: "[{{ vm_name }}] Roll back the partially created VM"
+      ansible.builtin.command:
+        argv: [VBoxManage, unregistervm, "{{ vm_name }}", --delete-all]
+      failed_when: false
+      changed_when: true
+
+    # --delete-all only removes media VirtualBox managed to register. An
+    # artefact it rejected (a truncated or malformed VMDK, say) is left behind,
+    # so remove the two files this task file created by name. Scoped to exactly
+    # those paths -- never the machine folder itself, which may predate us.
+    - name: "[{{ vm_name }}] Remove artefacts VirtualBox declined to register"
+      ansible.builtin.file:
+        path: "{{ _vm_folder }}/{{ item }}"
+        state: absent
+      loop:
+        - "{{ vm_name }}.vmdk"
+        - "{{ vm_name }}-seed.iso"
+      when: _vm_folder is defined
+
+    - name: "[{{ vm_name }}] Remove the scratch build directory"
+      ansible.builtin.file:
+        path: "{{ vm_build_dir }}/{{ vm_name }}"
+        state: absent
+
+    - name: "[{{ vm_name }}] Report the rollback and re-raise"
+      ansible.builtin.fail:
+        msg: |
+          Creation of VM '{{ vm_name }}' failed partway through the VirtualBox
+          registration sequence. The partially created VM has been unregistered
+          and its artefacts removed, so re-running the provision playbook starts clean.
+
+          Failed task: {{ ansible_failed_task.name | default('unknown') }}
+
+          Error:
+            {{ ansible_failed_result.stderr
+               | default(ansible_failed_result.msg, true)
+               | default(ansible_failed_result, true) | trim }}
+
+# ---- Stage 5: power on ----------------------------------------------------
+# Deliberately not guarded on _vm_exists: an existing but powered-off VM should
+# be brought up, which is what makes re-running this playbook useful rather
+# than merely harmless.
+
+- name: "[{{ vm_name }}] Read current power state"
+  ansible.builtin.command:
+    argv: [VBoxManage, showvminfo, "{{ vm_name }}", --machinereadable]
+  register: _vmstate
+  changed_when: false
+
+- name: "[{{ vm_name }}] Start the VM headless when it is not already running"
+  ansible.builtin.command:
+    argv: [VBoxManage, startvm, "{{ vm_name }}", --type, headless]
+  when: "'VMState=\"running\"' not in _vmstate.stdout"
+  changed_when: true

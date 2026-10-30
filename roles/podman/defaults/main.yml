@@ -1,0 +1,38 @@
+---
+# Rootless Podman under a dedicated, sudo-less account. The sandbox_* names are
+# shared with the other sandbox roles (egress_proxy, agentbox); the policy
+# values live in your inventory (see examples/group_vars/agent_sandbox.yml).
+
+sandbox_user: agent
+
+# Pinned rather than left to useradd's automatic allocation. Changing a range
+# after containers exist invalidates every image layer (podman system migrate),
+# so treat these as immutable once the host is in use.
+sandbox_subuid_start: 200000
+sandbox_subuid_count: 65536
+
+podman_packages:
+  - podman
+  # Podman 5's default rootless network backend. The egress design depends on
+  # container traffic leaving the host as the sandbox uid, which pasta does.
+  - passt
+  - uidmap
+  # Fallback only. Kernel 6.12 does rootless overlayfs natively and Podman 5
+  # uses it by default; nothing here forces fuse-overlayfs.
+  - fuse-overlayfs
+  # A per-user D-Bus, which the systemd cgroup manager talks to. Without it
+  # rootless Podman falls back to cgroupfs and the resource limits stop being
+  # delegated.
+  - dbus-user-session
+  # The init behind `podman run --init`. The agentbox launcher relies on it to
+  # reap the processes Claude Code's sandbox leaves behind; Debian only pulls
+  # it in as a Recommends.
+  - catatonit
+
+# Written as a drop-in. Debian's Podman ships no search registry, so an
+# unqualified `podman pull debian:trixie-slim` would fail outright.
+podman_unqualified_search_registries:
+  - docker.io
+
+podman_registries_dropin: /etc/containers/registries.conf.d/50-ansible.conf
+podman_containers_dropin: /etc/containers/containers.conf.d/50-ansible.conf

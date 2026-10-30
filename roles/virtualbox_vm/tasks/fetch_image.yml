@@ -1,0 +1,55 @@
+---
+# Download the Debian generic cloud image once and share it across all VMs.
+# The cached qcow2 is treated as immutable; per-VM copies are made in
+# create_vm.yml so resizing never mutates the cache.
+
+- name: Ensure image cache directory exists
+  ansible.builtin.file:
+    path: "{{ vm_image_cache_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Fetch the published SHA512SUMS
+  ansible.builtin.get_url:
+    url: "{{ vm_image_checksum_url }}"
+    dest: "{{ vm_image_cache_dir }}/SHA512SUMS"
+    mode: "0644"
+    force: true
+    # get_url defaults to a 10s timeout, which the Debian mirrors trip over
+    # often enough to be annoying. Retried because a transient failure here
+    # aborts the whole provisioning run.
+    timeout: 60
+  register: _sums_download
+  retries: 3
+  delay: 5
+  until: _sums_download is succeeded
+
+- name: Extract the expected checksum for this image
+  ansible.builtin.set_fact:
+    _expected_sha512: >-
+      {{ lookup('file', vm_image_cache_dir ~ '/SHA512SUMS')
+         | regex_search('^([0-9a-f]{128})\s+' ~ (vm_image_filename | regex_escape) ~ '$', '\1', multiline=True)
+         | first }}
+
+- name: Assert a checksum was actually found
+  ansible.builtin.assert:
+    that: "_expected_sha512 is defined and _expected_sha512 | length == 128"
+    fail_msg: >-
+      No SHA512 entry for '{{ vm_image_filename }}' in the published SHA512SUMS.
+      Debian may have renamed the image; check {{ vm_image_url | dirname }}/
+
+- name: Download the base cloud image (checksum-verified, skipped when current)
+  ansible.builtin.get_url:
+    url: "{{ vm_image_url }}"
+    dest: "{{ vm_image_cache_dir }}/{{ vm_image_filename }}"
+    checksum: "sha512:{{ _expected_sha512 }}"
+    mode: "0644"
+    timeout: 120
+  register: _image_download
+  retries: 3
+  delay: 10
+  until: _image_download is succeeded
+
+- name: Report cached image location
+  ansible.builtin.debug:
+    msg: "Base image ready at {{ vm_image_cache_dir }}/{{ vm_image_filename }}"

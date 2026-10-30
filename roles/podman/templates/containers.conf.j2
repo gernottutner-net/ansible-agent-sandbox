@@ -1,0 +1,19 @@
+# {{ ansible_managed }}
+# Drop-in; /usr/share/containers/containers.conf stays as the package shipped
+# it. Each value below is Podman 5's default on this platform, pinned because
+# the sandbox design depends on it and a silent change would break it.
+
+[containers]
+# Container logs go into the journal alongside everything else on the host.
+log_driver = "journald"
+
+[engine]
+# --memory and --pids-limit are only enforced through the delegated cgroup
+# that systemd hands the sandbox user. Under cgroupfs they would be advisory.
+cgroup_manager = "systemd"
+events_logger = "journald"
+
+[network]
+# The nftables egress rule matches on the sandbox uid, which is what pasta
+# traffic leaves the host as.
+default_rootless_network_cmd = "pasta"

@@ -1,0 +1,22 @@
+---
+# The sandbox on every host in the agent_sandbox group.
+#
+#   ansible-playbook tutner.agent_sandbox.sandbox -i inventory.yml --check --diff
+#   ansible-playbook tutner.agent_sandbox.sandbox -i inventory.yml
+#
+# Role order is load-bearing: egress_proxy and agentbox build on podman, and
+# agentbox needs the proxy's allowlist. The policy values come from the
+# inventory; see examples/.
+- name: Hosts running sandboxed agentic workloads
+  hosts: agent_sandbox
+  gather_facts: true
+  become: true
+  roles:
+    - role: tutner.agent_sandbox.podman
+      tags: [podman]
+
+    - role: tutner.agent_sandbox.egress_proxy
+      tags: [egress]
+
+    - role: tutner.agent_sandbox.agentbox
+      tags: [agentbox]

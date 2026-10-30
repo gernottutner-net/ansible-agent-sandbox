@@ -1,0 +1,34 @@
+---
+# Create and start a VirtualBox VM for every host in agent_sandbox, then wait
+# until it is manageable.
+#
+#   ansible-playbook tutner.agent_sandbox.provision
+#   ansible-playbook tutner.agent_sandbox.provision --limit sandbox-vm
+#
+# Everything in the first play executes on the VirtualBox host (connection:
+# local). The play targets the VM hosts so each one's host_vars are in scope
+# as ordinary variables, then forces local execution. Adding a VM means adding
+# inventory and host_vars, never editing this file.
+#
+# Preflight and the image download are run_once tasks in THIS play rather
+# than a separate `hosts: localhost` play: a localhost play would be filtered
+# out by --limit ("no hosts matched"), and every safety check would be
+# silently skipped.
+
+- name: Create and start VirtualBox VMs
+  hosts: agent_sandbox
+  # MUST stay false. This play targets VM hostnames but executes locally, so
+  # gathering facts would collect the VirtualBox HOST's facts and store them
+  # under the GUEST's inventory name. With fact caching on, that poisons the
+  # cache, and a later sandbox run reads the guest as the host's distribution.
+  gather_facts: false
+  connection: local
+  become: false
+  vars:
+    ansible_become: false
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  roles:
+    - role: tutner.agent_sandbox.virtualbox_vm
+
+- name: Wait for guests to become manageable
+  ansible.builtin.import_playbook: wait.yml

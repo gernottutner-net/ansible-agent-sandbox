@@ -1,0 +1,78 @@
+---
+# The sandbox image and the one launcher that runs it. Podman and the proxy
+# come from the roles before this one; the policy values live in your
+# inventory (see examples/group_vars/agent_sandbox.yml).
+
+# Shared with roles/podman; the policy value lives in group_vars.
+sandbox_user: agent
+
+# The image is tagged, never `latest`: a rebuild is a visible tag bump. The
+# role refuses to rebuild an existing tag from a changed Containerfile.
+sandbox_image_tag: "0.1.0"
+
+# Run limits, baked into the launcher so no invocation can forget one.
+# --memory-swap is set to the same value, which disables swap.
+sandbox_memory: 2g
+sandbox_cpus: 1.5
+sandbox_pids_limit: 256
+
+agentbox_base_image: docker.io/library/debian:trixie-slim
+
+# Same repository and version policy as roles/nodejs, which is not in scope
+# here (it runs in the dev play), hence a variable of its own.
+agentbox_node_major_version: 22
+
+# Pinned, so a rebuild installs what the tag says rather than whatever npm
+# serves that day. Updating Claude Code: bump this and sandbox_image_tag.
+agentbox_claude_code_version: "2.1.284"
+
+agentbox_apt_packages:
+  - ca-certificates
+  - curl
+  - git
+  - ripgrep
+  # What Claude Code's own sandbox uses on Linux, inside this container.
+  - bubblewrap
+  - socat
+
+# The non-root user inside the image. The launcher maps the sandbox user onto
+# this uid (--userns=keep-id:uid=...,gid=...), so files it writes to /work
+# belong to the sandbox user on the host.
+agentbox_image_user: dev
+agentbox_image_uid: 1000
+
+# Where Claude Code keeps its login and settings inside the container
+# (CLAUDE_CONFIG_DIR). The launcher mounts one host directory per project
+# there, from ~/.agentbox/<project>, so a login survives --rm but no session
+# sees another project's transcripts.
+agentbox_claude_config_dir: "/home/{{ agentbox_image_user }}/.claude"
+
+# Optional. If the sandbox user has a Podman secret by this name, the launcher
+# hands it to the container as ANTHROPIC_API_KEY; otherwise Claude Code uses
+# the login. The repo never holds the token.
+agentbox_api_key_secret: anthropic_api_key
+
+# Extra environment for Claude Code in every session, rendered into the
+# launcher as --env NAME=value. Policy, so group_vars sets it.
+agentbox_claude_env: {}
+
+# Added to agentbox_claude_env in --auto sessions only.
+agentbox_auto_claude_env: {}
+
+# Paths Claude Code's sandbox may write besides /work and its temp directory.
+# They live in the container's own layer and go with --rm.
+agentbox_sandbox_allow_write: []
+
+# Shared with roles/egress_proxy: Squid's allowlist. The Claude Code sandbox
+# inside each session gets the same list, so the two layers agree.
+egress_allowlist: []
+
+# Claude Code's managed settings: the strict sandbox, its domain list and the
+# deny rules for the login. Written on the host, owned by root, and mounted
+# read-only into every session at agentbox_managed_settings_target, where
+# Claude Code ranks it above every other settings file, --settings included.
+agentbox_managed_settings_path: /etc/agentbox/managed-settings.json
+agentbox_managed_settings_target: /etc/claude-code/managed-settings.json
+
+agentbox_build_dir: /etc/agentbox
+agentbox_launcher_path: /usr/local/bin/agentbox

@@ -1,0 +1,149 @@
+---
+# Fail fast, with actionable messages, before touching any VM state.
+
+- name: Assert every targeted VM names its addresses and key
+  ansible.builtin.assert:
+    that:
+      - hostvars[item].vm_nat_mac is defined
+      - hostvars[item].vm_hostonly_mac is defined
+      - hostvars[item].vm_hostonly_ip is defined
+      - hostvars[item].vm_ssh_public_key_file is defined
+    fail_msg: >-
+      {{ item }} needs vm_nat_mac, vm_hostonly_mac, vm_hostonly_ip and
+      vm_ssh_public_key_file in its host_vars; see
+      examples/host_vars/sandbox-vm.yml.
+    quiet: true
+  loop: "{{ ansible_play_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Locate required host tooling
+  ansible.builtin.command: "which {{ item }}"
+  loop:
+    - VBoxManage
+    - qemu-img
+    - cloud-localds
+  register: _tooling
+  changed_when: false
+  failed_when: false
+
+- name: Assert required host tooling is present
+  ansible.builtin.assert:
+    that: "_tooling.results | selectattr('rc', 'ne', 0) | list | length == 0"
+    fail_msg: >-
+      Missing required tools:
+      {{ _tooling.results | selectattr('rc', 'ne', 0) | map(attribute='item') | join(', ') }}.
+      Install with:  sudo apt install qemu-utils cloud-image-utils
+      (VirtualBox itself is expected to be already installed and is never
+      touched by this project.)
+    success_msg: "VBoxManage, qemu-img and cloud-localds are all available."
+
+- name: Read installed VirtualBox version
+  ansible.builtin.command: VBoxManage --version
+  register: _vbox_version
+  changed_when: false
+
+- name: Warn when VirtualBox is not on the 7.0 series this project targets
+  ansible.builtin.debug:
+    msg: >-
+      VirtualBox reports {{ _vbox_version.stdout }}. The VBoxManage flags used
+      here (--host-only-adapterN, --nic-typeN, --cable-connectedN, --os-type)
+      are the 7.0 spellings. 7.1+ still accepts them, but re-verify if you
+      upgrade.
+  when: not _vbox_version.stdout.startswith('7.0')
+
+# Read via command rather than ansible_kernel: this play deliberately does not
+# gather facts (see the comment in playbooks/provision.yml).
+- name: Read the running kernel version of the VirtualBox host
+  ansible.builtin.command: uname -r
+  register: _host_kernel
+  changed_when: false
+
+- name: Check whether the running kernel exposes kvm.enable_virt_at_load
+  ansible.builtin.stat:
+    path: /sys/module/kvm/parameters/enable_virt_at_load
+  register: _kvm_virt_at_load
+
+- name: Check whether a KVM module currently holds virtualization
+  ansible.builtin.command: "lsmod"
+  register: _lsmod
+  changed_when: false
+
+- name: Fail with remediation when KVM would block VirtualBox from starting VMs
+  ansible.builtin.fail:
+    msg: |
+      This kernel ({{ _host_kernel.stdout }}) claims virtualization extensions at KVM
+      module load time, and a KVM module is currently loaded. VirtualBox VMs
+      will fail to start with VERR_VMX_IN_VMX_ROOT_MODE / VERR_SVM_IN_USE.
+
+      Fix one of these ways:
+
+        Temporary (this boot only):
+          sudo modprobe -r kvm_amd kvm      # AMD
+          sudo modprobe -r kvm_intel kvm    # Intel
+
+        Persistent, keeps KVM usable alongside VirtualBox:
+          Add  kvm.enable_virt_at_load=0  to GRUB_CMDLINE_LINUX_DEFAULT in
+          /etc/default/grub, then:  sudo update-grub && reboot
+
+      See docs/virtualbox.md of the collection, "KVM conflict".
+  when:
+    - _kvm_virt_at_load.stat.exists
+    - _lsmod.stdout is search('^kvm_(intel|amd)', multiline=True)
+
+- name: Confirm the vboxdrv kernel module is loaded
+  ansible.builtin.assert:
+    that: "_lsmod.stdout is search('^vboxdrv', multiline=True)"
+    fail_msg: >-
+      vboxdrv is not loaded. Run: sudo modprobe vboxdrv
+      (If that fails on a Secure Boot system, the VirtualBox modules need to be
+      signed and enrolled.)
+    success_msg: "vboxdrv is loaded."
+
+- name: Read configured host-only interfaces
+  ansible.builtin.command: VBoxManage list hostonlyifs
+  register: _hostonlyifs
+  changed_when: false
+
+# hostvars[] does not carry role defaults, hence the fallback to this role's
+# vm_hostonly_interface for a host that does not set its own.
+# ansible_play_hosts, not groups['agent_sandbox'], so --limit narrows these
+# checks to the VMs actually being provisioned.
+- name: Assert every targeted VM's host-only interface exists
+  ansible.builtin.assert:
+    that: "_hostonlyifs.stdout is search('Name:\\s+' ~ (hostvars[item].vm_hostonly_interface | default(vm_hostonly_interface)))"
+    fail_msg: >-
+      Host-only interface '{{ (hostvars[item].vm_hostonly_interface | default(vm_hostonly_interface)) }}' required by
+      '{{ item }}' does not exist. Create it with:  VBoxManage hostonlyif create
+      then set its address:  VBoxManage hostonlyif ipconfig <name> --ip 192.168.56.1
+    success_msg: "Host-only interface {{ (hostvars[item].vm_hostonly_interface | default(vm_hostonly_interface)) }} exists."
+  loop: "{{ ansible_play_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Assert MAC addresses are unique across targeted VMs
+  ansible.builtin.assert:
+    that: "_all_macs | length == _all_macs | unique | length"
+    fail_msg: >-
+      Duplicate MAC address across VMs: {{ _all_macs }}. Two guests sharing a MAC
+      on the same host-only network breaks ARP and cloud-init's interface
+      matching. Give each VM unique vm_nat_mac / vm_hostonly_mac values.
+    success_msg: "All VM MAC addresses are unique."
+  vars:
+    _all_macs: >-
+      {{ ansible_play_hosts
+         | map('extract', hostvars, 'vm_nat_mac') | list
+         + ansible_play_hosts
+         | map('extract', hostvars, 'vm_hostonly_mac') | list }}
+  run_once: true
+
+- name: Warn about static addresses that collide with the vboxnet DHCP pool
+  ansible.builtin.debug:
+    msg: >-
+      {{ item }} uses static IP {{ hostvars[item].vm_hostonly_ip }}, which sits
+      inside the VirtualBox DHCP range .101-.254 on this network. Pick a lower
+      address to avoid a lease collision.
+  loop: "{{ ansible_play_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  when: hostvars[item].vm_hostonly_ip.split('.')[3] | int >= 101

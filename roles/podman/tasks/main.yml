@@ -1,0 +1,192 @@
+---
+# Rootless Podman and the identity it runs under. The account is the point:
+# cloud-init grants `ansible` NOPASSWD:ALL, so a container escape into that
+# account would be a root escape. Containers run as sandbox_user instead, which
+# has no sudo, no admin group and a subuid range of its own.
+
+- name: Install Podman and rootless prerequisites
+  ansible.builtin.apt:
+    name: "{{ podman_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# ---- the sandbox account --------------------------------------------------
+
+# groups: "" strips every supplementary group, so an operator adding the
+# account to sudo or adm by hand is undone on the next run.
+- name: Create the sandbox user
+  ansible.builtin.user:
+    name: "{{ sandbox_user }}"
+    shell: /bin/bash
+    create_home: true
+    groups: ""
+    append: false
+    password_lock: true
+
+# getent rather than the user task's result, which carries no uid in check
+# mode. On a first --check run the user does not exist yet and the tasks that
+# need the uid are skipped.
+- name: Look up the sandbox user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ sandbox_user }}"
+    fail_key: false
+  check_mode: false
+
+- name: Record the sandbox user's uid and home
+  ansible.builtin.set_fact:
+    _sandbox_uid: "{{ getent_passwd[sandbox_user][1] }}"
+    _sandbox_home: "{{ getent_passwd[sandbox_user][4] }}"
+  when: getent_passwd.get(sandbox_user) is not none
+
+- name: Keep the sandbox home private
+  ansible.builtin.file:
+    path: "{{ _sandbox_home }}"
+    state: directory
+    owner: "{{ sandbox_user }}"
+    group: "{{ sandbox_user }}"
+    mode: "0700"
+  when: _sandbox_home is defined
+
+- name: Check what sudo grants the sandbox user
+  ansible.builtin.command: "sudo -n -l -U {{ sandbox_user }}"
+  register: _sandbox_sudo
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: _sandbox_uid is defined
+
+- name: Assert the sandbox user has no sudo rights
+  ansible.builtin.assert:
+    that: "'is not allowed to run sudo' in _sandbox_sudo.stdout"
+    fail_msg: >-
+      {{ sandbox_user }} can run sudo ({{ _sandbox_sudo.stdout | trim }}).
+      A container escape into this account would be a root escape. Remove the
+      grant from /etc/sudoers or /etc/sudoers.d before continuing.
+    success_msg: "{{ sandbox_user }} has no sudo rights"
+  when: _sandbox_uid is defined
+
+# ---- subordinate ids --------------------------------------------------------
+
+# useradd allocates a range on its own (the next free one after existing
+# users), so the pinned range replaces that line rather than being added next
+# to it. Before writing, make sure the pinned range collides with no one else.
+- name: Read the subordinate id files
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - /etc/subuid
+    - /etc/subgid
+  register: _subid_files
+
+- name: Assert the pinned range overlaps no other user's
+  ansible.builtin.assert:
+    that: >-
+      (item.split(':')[1] | int) + (item.split(':')[2] | int) <= sandbox_subuid_start
+      or (item.split(':')[1] | int) >= sandbox_subuid_start + sandbox_subuid_count
+    fail_msg: >-
+      "{{ item }}" overlaps {{ sandbox_user }}:{{ sandbox_subuid_start }}:{{ sandbox_subuid_count }}.
+      Pick a different sandbox_subuid_start for this host.
+    quiet: true
+  # A multiline regex instead of splitting on newlines: a '\n' in a folded
+  # scalar reaches Jinja as a literal backslash-n, and the split silently
+  # does nothing.
+  loop: >-
+    {{ _subid_files.results
+       | map(attribute='content') | map('b64decode')
+       | map('regex_findall', '(?m)^[A-Za-z0-9_.$-]+:[0-9]+:[0-9]+$') | flatten
+       | reject('match', '^' ~ sandbox_user ~ ':')
+       | list }}
+
+- name: Pin the sandbox user's subordinate id range
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: "^{{ sandbox_user }}:"
+    line: "{{ sandbox_user }}:{{ sandbox_subuid_start }}:{{ sandbox_subuid_count }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - /etc/subuid
+    - /etc/subgid
+  notify: Migrate rootless Podman storage
+
+# ---- systemd user instance --------------------------------------------------
+
+# Lingering gives the account a systemd user instance, and with it a delegated
+# cgroup, when nobody is logged in -- which is exactly the unattended case.
+- name: Enable lingering for the sandbox user
+  ansible.builtin.command: "loginctl enable-linger {{ sandbox_user }}"
+  args:
+    creates: "/var/lib/systemd/linger/{{ sandbox_user }}"
+
+- name: Ensure the sandbox user's systemd instance is running
+  ansible.builtin.systemd_service:
+    name: "user@{{ _sandbox_uid }}.service"
+    state: started
+  when: _sandbox_uid is defined
+
+# ---- engine configuration ---------------------------------------------------
+
+- name: Configure registry search
+  ansible.builtin.template:
+    src: registries.conf.j2
+    dest: "{{ podman_registries_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure the containers.conf drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ podman_containers_dropin | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure the Podman engine
+  ansible.builtin.template:
+    src: containers.conf.j2
+    dest: "{{ podman_containers_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# ---- verification -------------------------------------------------------------
+
+# Read the effective state back from Podman as the sandbox user. This is the
+# check that the limits the launcher will set can actually bind.
+- name: Query Podman as the sandbox user
+  ansible.builtin.command: podman info --format json
+  become_user: "{{ sandbox_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
+  register: _podman_info
+  changed_when: false
+  when:
+    - _sandbox_uid is defined
+    - not ansible_check_mode
+
+- name: Assert rootless Podman has delegated cgroup v2 limits
+  vars:
+    _host: "{{ (_podman_info.stdout | from_json).host }}"
+  ansible.builtin.assert:
+    that:
+      - _host.security.rootless | bool
+      - _host.cgroupVersion == 'v2'
+      - _host.cgroupManager == 'systemd'
+      - "'memory' in _host.cgroupControllers"
+      - "'pids' in _host.cgroupControllers"
+      - (_host.rootlessNetworkCmd | default('unknown')) == 'pasta'
+    fail_msg: >-
+      Podman as {{ sandbox_user }} reports rootless={{ _host.security.rootless }},
+      cgroup {{ _host.cgroupVersion }} via {{ _host.cgroupManager }},
+      controllers {{ _host.cgroupControllers | join(',') }},
+      network {{ _host.rootlessNetworkCmd | default('unknown') }}.
+      Without the memory and pids controllers delegated, --memory and
+      --pids-limit are advisory; without pasta the egress rule does not hold.
+    success_msg: >-
+      rootless, cgroup v2 via systemd with {{ _host.cgroupControllers | join(',') }},
+      network via pasta
+  when: _podman_info.stdout is defined

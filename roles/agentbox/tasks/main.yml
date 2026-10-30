@@ -1,0 +1,193 @@
+---
+# The sandbox image and its launcher. The image is built rootless as the
+# sandbox user, through the proxy roles/egress_proxy hands to Podman; the
+# launcher at agentbox_launcher_path is the one place the run policy lives.
+
+- name: Look up the sandbox user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ sandbox_user }}"
+  check_mode: false
+
+- name: Record the sandbox user, the image and its Containerfile hash
+  ansible.builtin.set_fact:
+    _sandbox_uid: "{{ getent_passwd[sandbox_user][1] }}"
+    _agentbox_projects_dir: "{{ getent_passwd[sandbox_user][4] }}/projects"
+    _agentbox_state_dir: "{{ getent_passwd[sandbox_user][4] }}/.agentbox"
+    _agentbox_image: "localhost/agentbox:{{ sandbox_image_tag }}"
+    # Rendered on the controller, so the check below also works under --check,
+    # before the file on the host has changed.
+    _agentbox_containerfile_sha256: "{{ lookup('ansible.builtin.template', 'Containerfile.j2') | hash('sha256') }}"
+
+# ---- the image -----------------------------------------------------------------
+
+# Root-owned: the sandbox user builds from it but cannot change the recipe.
+- name: Ensure the build directory exists
+  ansible.builtin.file:
+    path: "{{ agentbox_build_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write the Containerfile
+  ansible.builtin.template:
+    src: Containerfile.j2
+    dest: "{{ agentbox_build_dir }}/Containerfile"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Look for the image as the sandbox user
+  ansible.builtin.command: "podman image inspect {{ _agentbox_image }}"
+  become_user: "{{ sandbox_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
+  register: _agentbox_existing
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# A tag names one build. Rebuilding it from a different Containerfile would be
+# the silent change the tag exists to prevent, so a changed recipe needs a new
+# tag instead. Old tags stay in storage: going back is setting the tag back.
+- name: Assert an existing tag was built from this Containerfile
+  vars:
+    _labels: "{{ (_agentbox_existing.stdout | from_json | first).Labels | default({}, true) }}"
+  ansible.builtin.assert:
+    that: _labels['agentbox.containerfile-sha256'] | default('') == _agentbox_containerfile_sha256
+    fail_msg: >-
+      {{ _agentbox_image }} exists but was built from a different Containerfile
+      ({{ _labels['agentbox.containerfile-sha256'] | default('no label') }}, now
+      {{ _agentbox_containerfile_sha256 }}). Bump sandbox_image_tag in
+      your inventory rather than rebuilding the tag.
+    success_msg: "{{ _agentbox_image }} matches the Containerfile"
+  when: _agentbox_existing.rc == 0
+
+# Pulls the base image if missing; apt, NodeSource and npm all go through Squid.
+- name: Build the image as the sandbox user
+  ansible.builtin.command:
+    argv:
+      - podman
+      - build
+      - --pull=missing
+      - --label
+      - "agentbox.containerfile-sha256={{ _agentbox_containerfile_sha256 }}"
+      - --tag
+      - "{{ _agentbox_image }}"
+      - --file
+      - "{{ agentbox_build_dir }}/Containerfile"
+      - "{{ agentbox_build_dir }}"
+  become_user: "{{ sandbox_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
+  when:
+    - _agentbox_existing.rc != 0
+    - not ansible_check_mode
+
+# ---- projects and launcher ------------------------------------------------------
+
+# Squid's ".example.com" means the domain and its subdomains. Claude Code's
+# docs do not say whether "*.example.com" includes example.com itself, so both
+# forms are listed.
+- name: Derive the sandbox domain list from the egress allowlist
+  ansible.builtin.set_fact:
+    _agentbox_sandbox_domains: >-
+      {{ ((egress_allowlist | map('regex_replace', '^\.', '') | list)
+          + (egress_allowlist | select('match', '^\.')
+             | map('regex_replace', '^\.', '*.') | list))
+         | unique | sort }}
+
+# Not in the image: mounted read-only into every session, so a change to the
+# policy or the allowlist needs no rebuild and no tag bump.
+- name: Write Claude Code's managed settings
+  ansible.builtin.template:
+    src: managed-settings.json.j2
+    dest: "{{ agentbox_managed_settings_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: python3 -m json.tool %s
+
+# Two directories whose per-project subdirectories are mounted in, and
+# nothing else: the project itself, and Claude Code's login and settings for
+# it. Kept apart so credentials never land in a project's repository.
+- name: Create the projects and state directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ sandbox_user }}"
+    group: "{{ sandbox_user }}"
+    mode: "0700"
+  loop:
+    - "{{ _agentbox_projects_dir }}"
+    - "{{ _agentbox_state_dir }}"
+
+- name: Install the launcher
+  ansible.builtin.template:
+    src: agentbox.j2
+    dest: "{{ agentbox_launcher_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+# ---- verification -------------------------------------------------------------
+
+- name: Inspect the image as the sandbox user
+  ansible.builtin.command: "podman image inspect {{ _agentbox_image }}"
+  become_user: "{{ sandbox_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
+  register: _agentbox_image_info
+  changed_when: false
+  when: not ansible_check_mode
+
+# The proxy must come from containers.conf at run time, never from the image:
+# baked in, it would follow the image to a host where it points nowhere.
+- name: Assert the image runs as its non-root user and carries no proxy
+  vars:
+    _config: "{{ (_agentbox_image_info.stdout | from_json | first).Config }}"
+  ansible.builtin.assert:
+    that:
+      - _config.User == agentbox_image_user
+      - _config.Env | select('search', '(?i)_proxy=') | list | length == 0
+    fail_msg: >-
+      {{ _agentbox_image }} has User "{{ _config.User }}" (expected
+      {{ agentbox_image_user }}) and Env {{ _config.Env }}.
+    success_msg: "{{ _agentbox_image }} runs as {{ agentbox_image_user }}, no proxy in its Env"
+  when: _agentbox_image_info.stdout is defined
+
+# Runs the image the way the launcher does, minus the secret and the mount, so
+# it needs neither.
+- name: Ask the image for its Claude Code version and uid
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --pull=never
+      - --cap-drop=ALL
+      - --security-opt=no-new-privileges
+      - "--userns=keep-id:uid={{ agentbox_image_uid }},gid={{ agentbox_image_uid }}"
+      - "{{ _agentbox_image }}"
+      - sh
+      - -c
+      - 'claude --version && id -u'
+  become_user: "{{ sandbox_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
+  register: _agentbox_probe
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the image has the pinned Claude Code and the expected uid
+  ansible.builtin.assert:
+    that:
+      - _agentbox_probe.stdout_lines | length == 2
+      - agentbox_claude_code_version in _agentbox_probe.stdout_lines[0]
+      - _agentbox_probe.stdout_lines[1] == agentbox_image_uid | string
+    fail_msg: >-
+      Expected Claude Code {{ agentbox_claude_code_version }} and uid
+      {{ agentbox_image_uid }}, got: {{ _agentbox_probe.stdout_lines }}
+    success_msg: "{{ _agentbox_probe.stdout_lines[0] }}, uid {{ _agentbox_probe.stdout_lines[1] }}"
+  when: _agentbox_probe.stdout is defined

@@ -1,0 +1,49 @@
+#cloud-config
+# Rendered per host from that host's variables.
+# Scope note: this file exists only to make the guest REACHABLE by Ansible.
+# Actual configuration is the sandbox playbook's job. Resist the urge to grow
+# this into a config management system.
+
+hostname: {{ vm_hostname }}
+{% if vm_domain %}
+fqdn: {{ vm_hostname }}.{{ vm_domain }}
+prefer_fqdn_over_hostname: false
+{% endif %}
+manage_etc_hosts: true
+
+users:
+  - name: {{ ansible_user }}
+    gecos: Ansible management account
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+    ssh_authorized_keys:
+      - "{{ vm_ssh_public_key }}"
+
+# Root stays locked; the ansible user is the only way in.
+disable_root: true
+ssh_pwauth: false
+
+# Grow the root filesystem into the resized virtual disk. The base image ships
+# a ~2 GB partition; without this the extra space stays unallocated.
+growpart:
+  mode: auto
+  devices: ["/"]
+  ignore_growroot_disabled: false
+resize_rootfs: true
+
+package_update: true
+package_upgrade: false
+packages:
+{% for pkg in vm_cloud_init_packages %}
+  - {{ pkg }}
+{% endfor %}
+
+# Marker file the provisioning playbook polls for as a belt-and-braces check
+# alongside `cloud-init status --wait`.
+runcmd:
+  - [ systemctl, enable, --now, qemu-guest-agent ]
+  - [ sh, -c, "touch /var/lib/cloud/instance/ansible-seed-complete" ]
+
+final_message: "cloud-init finished for {{ vm_hostname }} after $UPTIME seconds"

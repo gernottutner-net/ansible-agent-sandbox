@@ -1,0 +1,32 @@
+---
+# Everything specific to one sandbox VM. The playbooks hardcode none of it.
+
+# ---- How Ansible reaches the VM ---------------------------------------------
+ansible_host: "{{ vm_hostonly_ip }}"
+ansible_user: ansible
+
+# A passphrase-less key for this VM alone: its public half is injected by
+# cloud-init into this VM's authorized_keys only, so it opens nothing else.
+# Create it with: ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519_sandbox-vm
+ansible_ssh_private_key_file: "~/.ssh/id_ed25519_sandbox-vm"
+vm_ssh_public_key_file: "~/.ssh/id_ed25519_sandbox-vm.pub"
+
+# ---- Sandbox egress -----------------------------------------------------------
+# Squid listens on the host-only address: a pasta-networked container cannot
+# reach the VM's loopback, and 10.0.2.15 (NAT) is the container's own address.
+egress_proxy_address: "{{ vm_hostonly_ip }}"
+
+# ---- VirtualBox hardware --------------------------------------------------------
+# Defaults (6 GB, 4 CPUs, 40 GB disk) are in roles/virtualbox_vm/defaults.
+# vm_memory_mb: 6144
+# vm_cpus: 4
+# vm_disk_size: "40G"
+
+# Static host-only address, below the vboxnet0 DHCP pool (.101-.254).
+vm_hostonly_ip: "192.168.56.20"
+
+# Pinned MACs. cloud-init's network-config matches on them rather than on a
+# kernel interface name, so the static address survives any renaming.
+# VirtualBox format: 12 hex digits, no separators; unique across VMs.
+vm_nat_mac: "080027A9E521"
+vm_hostonly_mac: "080027A9E520"

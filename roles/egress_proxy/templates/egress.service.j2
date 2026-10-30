@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+# Loads the sandbox egress rule at boot, before any network is up and long
+# before the sandbox user's lingering systemd instance starts a container.
+# Stopping this unit removes the rule, and with it the boundary.
+
+[Unit]
+Description=nftables egress rule for the {{ sandbox_user }} sandbox user
+DefaultDependencies=no
+Wants=network-pre.target
+Before=network-pre.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f {{ egress_nft_path }}
+ExecReload=/usr/sbin/nft -f {{ egress_nft_path }}
+ExecStop=/usr/sbin/nft delete table inet {{ egress_nft_table }}
+
+[Install]
+WantedBy=sysinit.target

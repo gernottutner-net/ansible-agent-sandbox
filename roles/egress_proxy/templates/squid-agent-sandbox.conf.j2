@@ -1,0 +1,17 @@
+# {{ ansible_managed }}
+# Read through Debian's "include /etc/squid/conf.d/*.conf", which sits after
+# the stock Safe_ports / SSL_ports / manager / to_localhost / to_linklocal
+# denies. The stock "http_access allow localhost" before it is disabled by the
+# role. Squid stops at the first matching http_access line, so the "deny all"
+# below is final. The role asserts the include order before relying on it.
+#
+# Sandbox traffic reaches Squid through pasta, which connects from the host's
+# own address -- never from 127.0.0.1, so the stock "localhost" ACL would not
+# match it. -n: no reverse lookup, so a request for a bare IP address never
+# matches a domain on the list.
+
+acl agent_sandbox src {{ egress_proxy_address }}/32
+acl agent_allowed dstdomain -n "{{ egress_squid_allowlist_path }}"
+
+http_access allow agent_sandbox agent_allowed
+http_access deny all

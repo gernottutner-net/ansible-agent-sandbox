@@ -1,0 +1,22 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# Owns table inet {{ egress_nft_table }} and nothing else -- never `flush
+# ruleset` here. Declaring the table before flushing it makes the flush work on
+# the first load too, and nft applies the whole file as one transaction, so a
+# reload never leaves a window without the rule.
+
+table inet {{ egress_nft_table }}
+flush table inet {{ egress_nft_table }}
+
+table inet {{ egress_nft_table }} {
+	chain output {
+		type filter hook output priority filter; policy accept;
+
+		# {{ sandbox_user }} (uid {{ _sandbox_uid }}) may reach Squid and nothing
+		# else. No loopback exception: the host resolver (127.0.0.53, which pasta
+		# forwards container DNS to) and the local MTA would both be side
+		# channels the allowlist never sees. Squid resolves names itself.
+		meta skuid {{ _sandbox_uid }} ip daddr {{ egress_proxy_address }} tcp dport {{ egress_proxy_port }} accept
+		meta skuid {{ _sandbox_uid }} counter reject
+	}
+}

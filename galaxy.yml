@@ -1,0 +1,28 @@
+---
+# Installed from Git only, never published to Galaxy:
+#   ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git
+namespace: tutner
+name: agent_sandbox
+version: 0.1.0
+readme: README.md
+authors:
+  - Gernot Tutner
+description: >-
+  A sandbox for agentic coding on VirtualBox: creates and snapshots a
+  disposable Debian 13 VM, and runs Claude Code in it under rootless Podman,
+  default-deny egress through Squid, and a pinned image with its strict
+  inner sandbox.
+license:
+  - MIT
+tags:
+  - sandbox
+  - podman
+  - security
+  - claude
+  - virtualbox
+dependencies: {}
+repository: https://github.com/gernottutner-net/ansible-agent-sandbox
+issues: https://github.com/gernottutner-net/ansible-agent-sandbox/issues
+build_ignore:
+  - .git
+  - "*.tar.gz"

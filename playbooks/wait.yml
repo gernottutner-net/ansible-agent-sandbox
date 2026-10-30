@@ -1,0 +1,72 @@
+---
+# Bridge between LAYER 1 and LAYER 2: block until a freshly provisioned guest
+# is actually manageable by Ansible.
+#
+# Two distinct waits, and both matter:
+#   1. SSH accepts connections  -- the guest booted and got its static address.
+#   2. cloud-init reports done  -- the ansible user, sudo rule and authorized
+#      key actually exist. SSH answering does NOT imply cloud-init finished;
+#      running the sandbox playbook in that window fails with permission
+#      errors.
+#
+# Usage (also imported automatically at the end of provision.yml):
+#   ansible-playbook tutner.agent_sandbox.wait --limit sandbox-vm
+
+- name: Wait for guest SSH to accept connections
+  hosts: agent_sandbox
+  gather_facts: false
+  connection: local
+  become: false
+  vars:
+    ansible_become: false
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  tasks:
+    - name: "[{{ vm_name | default(inventory_hostname) }}] Wait for port 22 on {{ ansible_host }}"
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        state: started
+        timeout: "{{ vm_boot_timeout | default(300) }}"
+        delay: 5
+      register: _ssh_up
+
+    - name: "[{{ vm_name | default(inventory_hostname) }}] Report SSH availability"
+      ansible.builtin.debug:
+        msg: "SSH is up on {{ ansible_host }}:22"
+
+- name: Wait for cloud-init to finish inside the guest
+  hosts: agent_sandbox
+  gather_facts: false
+  become: false
+  tasks:
+    - name: "[{{ inventory_hostname }}] Wait for the SSH host key to settle"
+      ansible.builtin.wait_for_connection:
+        timeout: "{{ vm_boot_timeout | default(300) }}"
+        delay: 2
+
+    - name: "[{{ inventory_hostname }}] Block until cloud-init reports done"
+      ansible.builtin.command: cloud-init status --wait
+      register: _ci_status
+      changed_when: false
+      # `cloud-init status --wait` exits 2 on "done with recoverable errors",
+      # which is common and benign (e.g. an optional module skipped).
+      failed_when: _ci_status.rc not in [0, 2]
+      timeout: "{{ vm_cloud_init_timeout | default(600) }}"
+
+    - name: "[{{ inventory_hostname }}] Confirm the seed completion marker"
+      ansible.builtin.stat:
+        path: /var/lib/cloud/instance/ansible-seed-complete
+      register: _seed_marker
+
+    - name: "[{{ inventory_hostname }}] Assert the guest is fully seeded"
+      ansible.builtin.assert:
+        that: _seed_marker.stat.exists
+        fail_msg: >-
+          cloud-init finished but the seed marker is missing. Inspect
+          /var/log/cloud-init-output.log inside the guest before running the
+          sandbox playbook.
+        success_msg: "{{ inventory_hostname }} is seeded and ready for the sandbox playbook."
+
+    - name: "[{{ inventory_hostname }}] Report cloud-init status"
+      ansible.builtin.debug:
+        msg: "{{ _ci_status.stdout | trim }}"

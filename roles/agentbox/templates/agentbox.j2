@@ -1,0 +1,110 @@
+#!/bin/sh
+# {{ ansible_managed }}
+# The only supported way to start a sandbox session:
+#
+#   agentbox <project> [command ...]
+#   agentbox --auto <project> [claude-args ...]
+#
+# Runs {{ _agentbox_image }} with <project> from {{ _agentbox_projects_dir }}
+# mounted at /work, and the command (default: claude) inside it. With --auto,
+# Claude Code runs with --dangerously-skip-permissions: no prompts at all,
+# with the container, Squid and Claude Code's strict sandbox as the boundary,
+# and without the claude.ai connectors.
+# Claude Code's login and settings for the project persist in
+# {{ _agentbox_state_dir }}/<project>, outside /work so they never end up in the
+# project's repository; its managed settings come read-only from
+# {{ agentbox_managed_settings_path }}. The run policy is fixed here, not taken
+# from the environment or the command line, so no session can forget a limit.
+# See README.md, "The launcher".
+set -eu
+
+die() {
+    echo "agentbox: $*" >&2
+    exit 1
+}
+
+[ "$(id -un)" = {{ sandbox_user | quote }} ] \
+    || die "run as {{ sandbox_user }}, e.g. sudo -iu {{ sandbox_user }} agentbox <project>"
+
+usage="usage: agentbox <project> [command ...] | agentbox --auto <project> [claude-args ...]"
+
+auto=
+if [ "${1:-}" = --auto ]; then
+    auto=1
+    shift
+fi
+
+[ $# -ge 1 ] || die "$usage"
+project=$1
+shift
+
+# Autonomous: Claude Code without permission prompts. Extra arguments go to
+# claude, e.g. agentbox --auto <project> -p "<task>" for an unattended run.
+if [ -n "$auto" ]; then
+    set -- claude --dangerously-skip-permissions "$@"
+fi
+
+# One directory by name: no slashes, no dot-names, nothing that could reach
+# outside the projects directory.
+case $project in
+    [A-Za-z0-9]*) ;;
+    *) die "project name must start with a letter or digit: $project" ;;
+esac
+case $project in
+    *[!A-Za-z0-9._-]*) die "project name may contain only letters, digits, '.', '_' and '-': $project" ;;
+esac
+
+# sudo -i does not set it, and rootless Podman finds the user's systemd
+# instance through it.
+: "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
+export XDG_RUNTIME_DIR
+
+podman image exists {{ _agentbox_image | quote }} \
+    || die "image {{ _agentbox_image }} is missing; run the sandbox playbook with --tags agentbox"
+
+[ -r {{ agentbox_managed_settings_path | quote }} ] \
+    || die "Claude Code policy {{ agentbox_managed_settings_path }} is missing; run the sandbox playbook with --tags agentbox"
+
+# Optional: without the secret, Claude Code uses the login kept in the state
+# directory.
+if podman secret exists {{ agentbox_api_key_secret | quote }}; then
+    secret=--secret={{ agentbox_api_key_secret }},type=env,target=ANTHROPIC_API_KEY
+else
+    secret=
+fi
+
+workdir={{ _agentbox_projects_dir | quote }}/$project
+statedir={{ _agentbox_state_dir | quote }}/$project
+mkdir -p "$workdir"
+mkdir -p -m 0700 "$statedir"
+
+if [ -t 0 ] && [ -t 1 ]; then
+    tty=--tty
+else
+    tty=
+fi
+
+exec podman run --rm --interactive ${tty:+"$tty"} \
+    --name "agentbox-$project" \
+{# claude does not reap orphans as PID 1; the zombies of its sandboxed
+   commands pile up against the pids limit. catatonit takes PID 1 instead. #}
+    --init \
+    --pull=never \
+    --memory={{ sandbox_memory | quote }} --memory-swap={{ sandbox_memory | quote }} \
+    --cpus={{ sandbox_cpus | quote }} \
+    --pids-limit={{ sandbox_pids_limit | quote }} \
+    --cap-drop=ALL \
+    --security-opt=no-new-privileges \
+    --userns=keep-id:uid={{ agentbox_image_uid }},gid={{ agentbox_image_uid }} \
+    --volume "$workdir:/work" --workdir /work \
+    --volume "$statedir:{{ agentbox_claude_config_dir }}" \
+    --volume {{ (agentbox_managed_settings_path ~ ':' ~ agentbox_managed_settings_target ~ ':ro') | quote }} \
+    --env CLAUDE_CONFIG_DIR={{ agentbox_claude_config_dir | quote }} \
+{% for name, value in agentbox_claude_env | dictsort %}
+    --env {{ (name ~ '=' ~ value) | quote }} \
+{% endfor %}
+{% for name, value in agentbox_auto_claude_env | dictsort %}
+    ${auto:+{{ ('--env=' ~ name ~ '=' ~ value) | quote }}} \
+{% endfor %}
+    ${secret:+"$secret"} \
+    {{ _agentbox_image | quote }} "$@"

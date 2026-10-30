@@ -1,0 +1,19 @@
+# {{ ansible_managed }}
+# The proxy for rootless Podman. Every other route out is rejected by the
+# nftables rule on the sandbox uid, so without this pulls, builds and
+# containers have no network at all. Given by address, because the sandbox
+# has no DNS of its own.
+
+[containers]
+env = [
+{% for name in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY'] %}
+  "{{ name }}={{ _egress_proxy_url }}",
+{% endfor %}
+]
+
+[engine]
+env = [
+{% for name in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY'] %}
+  "{{ name }}={{ _egress_proxy_url }}",
+{% endfor %}
+]
