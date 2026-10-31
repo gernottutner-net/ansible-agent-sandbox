@@ -1,3 +1,4 @@
 *.tar.gz
 .ansible/
 examples/state/
+.claude/settings.local.json

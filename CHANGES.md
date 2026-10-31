@@ -5,10 +5,13 @@ level.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-31 — A system you can build on
+
 ### 2026-10-31
 
 #### Added
 
+- `.claude/CLAUDE.md`: the project's conventions for working on it with Claude Code — the rules for the public repository (nothing private, the noreply address, VirtualBox only, semver below 1.0.0, Git install only, release tests before a release), the commit and CHANGES.md rules. `.gitignore` keeps Claude Code's per-machine `.claude/settings.local.json` out.
 - `docs/release-tests.md`: the release tests. A checklist for running them before a release, on a new VM from the release's commit and with the public docs alone: provision, `sandbox` twice with `changed=0` the second time, the README's smoke tests, snapshots taken and restored with `ssh` right after, `destroy` on a VM with snapshots; an upgrade test with `--check --diff` where a release changes a role, and the known-unknowns session where it changes Claude Code, the managed settings or the launcher. Then the record of the runs before `v0.1.0`: three full runs on fresh VMs, the re-test that explained `destroy`'s failure on VMs with snapshots, the upgrade of the VM the design was developed on from the roles' older copies, and the known-unknowns session, with what each found and the commits that fixed it. The README and `docs/design.md` point to it.
 - `docs/design.md`: the design behind the collection, edited from the private repository's design docs for the public: the layers, the sandbox account, the four roles with their traps and the finding on what a pasta container can reach, the policy surface, the launcher contract, "Secrets, honestly", core and extensions, the extension points (planned), the rules for extensions and the security boundary (proposed), the known unknowns with their results and the plan they were tested by, the possible features, why not bare metal, the decisions in force with their reasoning, and gVisor in a section of its own, marked experimental. New in it: the rule for credential extensions, which follows from the test of the environment: no credential in the environment or on a command line; a file under the credentials deny where Claude Code reads it; a narrow scope, and saying so, where a command such as git does. The README's "What it protects, and what not" points to it.
 
