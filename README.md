@@ -56,7 +56,9 @@ guest over SSH, in this order, from the playbook `sandbox`.
 | `agentbox` | The image (Debian, Node, a pinned Claude Code), Claude Code's managed settings, and the launcher `/usr/local/bin/agentbox`, the only supported way to start a session. |
 
 Every role checks what it set up before it finishes, so a run that passes
-has been observed denying, not only configured to.
+has been observed denying, not only configured to. The layers they build,
+and why Debian 13 and rootless Podman rather than the host's own system or
+Docker, are in [docs/design.md, "The layers"](docs/design.md#the-layers).
 
 ## Requirements
 

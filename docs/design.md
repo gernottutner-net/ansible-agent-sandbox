@@ -1,8 +1,8 @@
 # Design
 
-Why the sandbox is built the way it is: what each role does and why, the
-policy surface, the launcher contract, what the design knows and what it
-does not, and the decisions behind it. The README says how to use the
+Why the sandbox is built the way it is: its layers and why this stack,
+what each role does and why, the policy surface, the launcher contract,
+what the design knows and what it does not, and the decisions behind it. The README says how to use the
 collection; [docs/virtualbox.md](virtualbox.md) covers the VM, and
 [docs/release-tests.md](release-tests.md) what was tested before a
 release. This document is for anyone who wants to judge whether the sandbox deserves
@@ -27,6 +27,7 @@ named are the ones tested: Debian 13, Podman 5.4.2, Squid 6.13, kernel
 ## Contents
 
 - [The layers](#the-layers)
+  - [Why this stack](#why-this-stack)
 - [The sandbox account](#the-sandbox-account)
 - [The roles](#the-roles)
   - [`virtualbox_vm`: the disposable VM](#virtualbox_vm-the-disposable-vm)
@@ -70,6 +71,56 @@ From the outside in. Each layer assumes the one inside it can fail.
 
 What none of them stops is in the README, "What it protects, and what not",
 and under [Secrets, honestly](#secrets-honestly).
+
+### Why this stack
+
+```
+VirtualBox host
+  └─ VirtualBox VM: Debian 13, disposable, snapshotted
+       ├─ Squid, the only way out (egress_proxy)
+       └─ rootless Podman with crun, as `agent` (no sudo)
+            └─ session container, one per session, removed after it
+                 └─ Claude Code, its commands under bubblewrap
+```
+
+gVisor would sit between Podman and the container. It is not in the core
+and not in this picture: see
+[gVisor, the experimental extension](#gvisor-the-experimental-extension).
+
+**The guest: Debian 13, whatever the host runs.** The guest is chosen for
+the sandbox, not inherited from the host. Ubuntu 22.04, the host the
+collection is tested on, ships kernel 5.15 and Podman 3.4, which predates
+pasta, the network mode
+[the egress rule](#finding-what-a-pasta-container-can-reach-on-the-host)
+is built on. Debian 13 has Podman 5 in its own archive and
+kernel 6.12, with the cgroup v2 delegation and user-namespace behaviour
+that rootless Podman relies on for the limits.
+
+**The runtime: rootless Podman, not Docker.**
+
+- *Rootless.* A container's root maps to the unprivileged uid of the
+  account running Podman. That is a boundary only if the account is
+  unprivileged, which the one cloud-init creates is not: hence
+  [the sandbox account](#the-sandbox-account).
+- *Daemonless.* No root-owned `dockerd` with a privileged socket to attack.
+- *journald.* Container logs and events go to the VM's journal, with the
+  rest of its logs.
+- *In Debian.* Podman needs no third-party APT repository or signing key
+  on the VM. The only third-party source is inside the image: NodeSource,
+  for Node.
+
+**Egress: an allowlist, not no network.** Default-deny, with an explicit
+list of hosts reached through a proxy. A blanket block would break package
+installs, and Claude Code itself. Squid's access log records every request,
+allowed or denied. How it is enforced is under
+[`egress_proxy`](#egress_proxy-default-deny-with-exceptions).
+
+**Files: only the project.** A session gets the project's directory and
+that project's Claude Code state, never a home directory, SSH keys or cloud
+credentials (see [`agentbox`](#agentbox-image-managed-settings-and-launcher)).
+The container is removed when the session ends; what should last lives in
+the project. The usual advice of scoped tokens in environment variables
+does not hold here: see [Secrets, honestly](#secrets-honestly).
 
 ## The sandbox account
 

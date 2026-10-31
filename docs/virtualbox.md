@@ -120,6 +120,14 @@ ansible-playbook tutner.agent_sandbox.provision --limit <name>
 ansible-playbook tutner.agent_sandbox.sandbox --limit <name>
 ```
 
+**Sizing.** As a guide: 2 CPUs, 4 GB and a 20 GB disk are enough for one
+session; real work wants 4 CPUs or more and 8–16 GB, on an SSD. Each
+session may use up to `sandbox_memory` (2 GB by default) with no swap, and
+1.5 CPUs (`sandbox_cpus`), so the VM needs that much memory per
+concurrent session, on top of Squid and the guest itself. Old image tags
+stay in `agent`'s storage for going back, and take disk space until
+removed.
+
 ## Snapshots
 
 A snapshot freezes the VM's disk at a moment; restoring throws away
