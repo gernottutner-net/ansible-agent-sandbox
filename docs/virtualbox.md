@@ -228,10 +228,13 @@ For the original pristine state, don't re-baseline: `destroy`, then
 ansible-playbook tutner.agent_sandbox.destroy --limit sandbox-vm
 ```
 
-Powers the VM off, then `unregistervm --delete-all` removes it with all its
-disks and snapshots. It asks before each VM (skip with
+Powers the VM off, then `unregistervm --delete` removes it with all its
+disks and snapshots, `closemedium` deletes the seed ISO, and the machine
+folder and the build artefacts go last. It asks before each VM (skip with
 `-e destroy_confirm=yes`) and refuses to run on more than one VM without
-`-e destroy_all=yes`. The cached base image is kept.
+`-e destroy_all=yes`. The cached base image is kept, and so is the
+snapshot state file next to your inventory: delete
+`state/<host>-snapshot.yml` by hand if the VM is not coming back.
 
 ## Why two NICs
 
@@ -264,8 +267,14 @@ Verified against 7.0.26:
 5. `modifymedium --resize` does not work on VMDK, hence the resize while the
    image is still qcow2.
 6. The VMDK subformat is pinned to `monolithicSparse`.
-7. `unregistervm --delete-all`, not `--delete`, which leaves media behind
-   that block a later re-create.
+7. `unregistervm --delete` plus a `closemedium dvd … --delete` for the seed
+   ISO, not `--delete-all`. `--delete-all` fails as soon as the seed ISO is
+   referenced more than once, by the current state and a snapshot, as on
+   every VM after its first `take`: it deletes the snapshot images and the
+   ISO, then stops at the base disk with `E_ACCESSDENIED` ("The object is
+   not ready"), leaving the disk registered and the `.vbox` behind.
+   `--delete` alone leaves the ISO registered, which blocks a later
+   re-create, hence the `closemedium`.
 
 ## KVM conflict
 
@@ -309,11 +318,14 @@ ip -br addr
 Most likely a MAC in host_vars that does not match, or one shared with
 another VM.
 
-**Re-create fails with a UUID-already-registered error.** Stale media:
+**Re-create fails with a UUID-already-registered error.** Stale media,
+for example from a `destroy` that stopped partway:
 
 ```bash
 VBoxManage list hdds
 VBoxManage closemedium disk <uuid> --delete
+VBoxManage list dvds
+VBoxManage closemedium dvd <uuid> --delete
 ```
 
 **Checksum mismatch on the base image.** Debian rotated `latest/`. Delete

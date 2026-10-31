@@ -13,6 +13,7 @@ level.
 
 #### Changed
 
+- `destroy`: works on a VM with snapshots. `unregistervm --delete-all` failed as soon as the seed ISO was referenced by a snapshot as well as the current state, as on every VM after its first `take`: it stopped at the base disk with `E_ACCESSDENIED`, leaving the disk registered, the `.vbox` and the build artefacts behind. Now `unregistervm --delete` removes the disks and the `.vbox`, `closemedium dvd --delete` the seed ISO, once, and the machine folder is removed after a check that it is named after the VM. Tested on a VM with a branched snapshot tree, and on a VM that no longer exists. `docs/virtualbox.md` says so, and that the snapshot state file outlives `destroy`.
 - `snapshot`: `take` and `restore` return only once a VM they restarted answers over SSH again. Before, the playbook ended while the guest was still booting, and the next `ssh` was refused. The role records which VMs it started (`_snapshot_started_vm`), and a second play in the playbook runs `wait_for_connection` for those alone, within `vm_boot_timeout`; a VM that was off, and the actions `list` and `delete`, are not waited for. The README and `docs/virtualbox.md` say so.
 
 - `virtualbox_vm`: the snapshot state file is written to `snapshot_state_dir`, next to the inventory, as documented. `tasks/snapshot.yml` still built its path from `playbook_dir`, so with the installed collection it landed inside the collection, under `playbooks/state/`, and a reinstall would lose the recorded baseline.

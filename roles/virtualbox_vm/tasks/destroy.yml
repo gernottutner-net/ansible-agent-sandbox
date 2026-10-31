@@ -51,14 +51,57 @@
     - _vminfo.rc == 0
     - "'VMState=\"running\"' in _vminfo.stdout"
 
-# --delete-all removes the .vbox, attached disks and the seed ISO.
-# Plain --delete leaves media behind that then block a later re-create with
-# a UUID-already-registered error.
-- name: "[{{ vm_name }}] Unregister and delete the VM with all its media"
+- name: "[{{ vm_name }}] Locate the machine folder"
+  ansible.builtin.set_fact:
+    _vm_folder: >-
+      {{ (_vminfo.stdout
+          | regex_search('^CfgFile="(.*)"$', '\1', multiline=True)
+          | first) | dirname }}
+  when: _vminfo.rc == 0
+
+- name: "[{{ vm_name }}] Refuse a machine folder not named after the VM"
+  ansible.builtin.assert:
+    that: _vm_folder | basename == vm_name
+    fail_msg: >-
+      The machine folder {{ _vm_folder }} is not named {{ vm_name }}. Not
+      deleting anything; remove the VM by hand.
+  when: _vminfo.rc == 0
+
+# Not --delete-all: with VirtualBox 7.0 it fails as soon as the seed ISO is
+# referenced more than once, by the current state and a snapshot, as on
+# every VM after its first `take`. It deletes the snapshot images and the
+# ISO, then stops at the base disk with E_ACCESSDENIED ("The object is not
+# ready"), leaving that disk registered and the .vbox behind. --delete
+# removes the disks, snapshots included, and the .vbox, and leaves the DVD
+# alone; the seed ISO is then closed and deleted once, below. Without that,
+# a later re-create would fail with a UUID-already-registered error.
+- name: "[{{ vm_name }}] Unregister the VM and delete its disks and snapshots"
   ansible.builtin.command:
-    argv: [VBoxManage, unregistervm, "{{ vm_name }}", --delete-all]
+    argv: [VBoxManage, unregistervm, "{{ vm_name }}", --delete]
   when: _vminfo.rc == 0
   changed_when: true
+
+- name: "[{{ vm_name }}] List the registered DVD images"
+  ansible.builtin.command:
+    argv: [VBoxManage, list, dvds]
+  register: _dvds
+  changed_when: false
+  when: _vminfo.rc == 0
+
+- name: "[{{ vm_name }}] Close and delete the seed ISO"
+  ansible.builtin.command:
+    argv: [VBoxManage, closemedium, dvd, "{{ _vm_folder }}/{{ vm_name }}-seed.iso", --delete]
+  when:
+    - _vminfo.rc == 0
+    - (_vm_folder ~ '/' ~ vm_name ~ '-seed.iso') in
+      (_dvds.stdout_lines | map('regex_replace', '^Location:\s+', '') | list)
+  changed_when: true
+
+- name: "[{{ vm_name }}] Remove the machine folder"
+  ansible.builtin.file:
+    path: "{{ _vm_folder }}"
+    state: absent
+  when: _vminfo.rc == 0
 
 - name: "[{{ vm_name }}] Remove leftover build artefacts"
   ansible.builtin.file:
