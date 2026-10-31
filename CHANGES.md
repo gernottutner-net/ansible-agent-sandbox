@@ -5,6 +5,12 @@ level.
 
 ## [Unreleased]
 
+### 2026-10-31
+
+#### Changed
+
+- README: the title says what the collection is, "A sandbox for agentic coding on VirtualBox", instead of the repository's name.
+
 ## [0.1.0] - 2026-10-31 — A system you can build on
 
 ### 2026-10-31

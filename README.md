@@ -1,4 +1,4 @@
-# ansible-agent-sandbox
+# A sandbox for agentic coding on VirtualBox
 
 An Ansible collection, `tutner.agent_sandbox`, for a sandbox for agentic
 coding with Claude Code **on VirtualBox**, end to end: it creates the
