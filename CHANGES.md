@@ -7,6 +7,10 @@ level.
 
 ### 2026-10-31
 
+#### Added
+
+- README: a banner under the title, `docs/images/README_banner.png` (1280×640, also fit for GitHub's social preview): a retro robot working contentedly in a cosy cell behind bars, labelled with the VM, rootless Podman and the egress allowlist. Stripped of metadata.
+
 #### Changed
 
 - README: the title says what the collection is, "A sandbox for agentic coding on VirtualBox", instead of the repository's name.

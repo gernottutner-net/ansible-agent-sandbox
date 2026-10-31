@@ -1,5 +1,7 @@
 # A sandbox for agentic coding on VirtualBox
 
+![A retro robot works happily at a desk in a cosy room behind prison bars: a disposable VM, rootless Podman and an egress allowlist](docs/images/README_banner.png)
+
 An Ansible collection, `tutner.agent_sandbox`, for a sandbox for agentic
 coding with Claude Code **on VirtualBox**, end to end: it creates the
 Debian 13 VM on your VirtualBox host, snapshots and destroys it, and turns
