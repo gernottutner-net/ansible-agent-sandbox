@@ -152,7 +152,8 @@ After every `take`, the chain is pruned to the newest snapshot plus the
 **baseline**, the root of the snapshot tree. Pruning runs after the new
 snapshot exists, so there is never a moment without a restore point. The
 first snapshot you take is the baseline; take it right after the sandbox
-playbook has run on a fresh VM.
+playbook has run on a fresh VM and the
+[smoke tests](../README.md#check-the-sandbox) have passed.
 
 The baseline is protected twice:
 

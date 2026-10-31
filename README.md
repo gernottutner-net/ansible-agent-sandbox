@@ -26,6 +26,7 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
 - [Install](#install)
 - [Configure](#configure)
 - [Create the VM and the sandbox](#create-the-vm-and-the-sandbox)
+- [Check the sandbox](#check-the-sandbox)
 - [Snapshots and teardown](#snapshots-and-teardown)
 - [Sessions](#sessions)
   - [The launcher](#the-launcher)
@@ -116,6 +117,48 @@ ansible-playbook tutner.agent_sandbox.sandbox      # the sandbox inside it
 `provision` skips a VM that exists and starts it if it is off. `sandbox`
 takes the tags `podman`, `egress` and `agentbox`; a second run reports
 `changed=0`, and `--check --diff` shows what a run would change.
+
+## Check the sandbox
+
+The roles check their own work on every run. These smoke tests check it
+once more from where a session sits, inside a container. Run them once
+after the first `sandbox` run, as `agent` on the VM (`ssh` in as
+`ansible`, then `sudo -iu agent`). Containers get the proxy from Podman's
+`containers.conf`, as `$https_proxy`.
+
+```bash
+img=docker.io/library/debian:trixie-slim
+
+# Limits bind: expect 2147483648
+podman run --rm --memory=2g $img cat /sys/fs/cgroup/memory.max
+
+# An allowlisted host works through the proxy: expect the package lists
+podman run --rm $img apt-get update
+
+# A host not on the list: expect Squid's "HTTP/1.1 403 Forbidden"
+podman run --rm $img bash -c '
+  p=${https_proxy#http://}; p=${p%/}
+  exec 3<>/dev/tcp/${p%:*}/${p##*:}
+  printf "CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n" >&3
+  head -1 <&3'
+
+# Bypassing the proxy: expect "Connection refused", never OPEN
+podman run --rm $img bash -c 'timeout 10 bash -c "exec 3<>/dev/tcp/1.1.1.1/443" && echo OPEN'
+
+# No resolver: expect no output, exit code 2
+podman run --rm $img getent hosts deb.debian.org; echo $?
+
+# The launcher: expect uid 1000 (dev), the limits from your policy
+# (memory, pids, CPU quota), and the pinned Claude Code version
+agentbox smoke bash -c 'id; cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/pids.max /sys/fs/cgroup/cpu.max; claude --version' < /dev/null
+rmdir ~/projects/smoke ~/.agentbox/smoke
+```
+
+`debian:trixie-slim` has no `curl`, so the raw tests use bash's
+`/dev/tcp`. The bypass test is the one that matters: a default-deny that
+has never been observed denying anything is not a default-deny. The last
+line removes the directories the launcher created for the project `smoke`,
+so they do not end up in the baseline.
 
 Then take the baseline snapshot, before the first session:
 
