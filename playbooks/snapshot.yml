@@ -24,3 +24,18 @@
       ansible.builtin.include_role:
         name: tutner.agent_sandbox.virtualbox_vm
         tasks_from: snapshot.yml
+
+# take and restore stop a running VM and start it again. Return only once
+# Ansible can reach it, as provision does, so the next ssh or playbook run
+# does not hit a guest that is still booting. VMs that were off, and the
+# actions list and delete, are not waited for.
+- name: Wait for VMs the snapshot action restarted
+  hosts: agent_sandbox
+  gather_facts: false
+  become: false
+  tasks:
+    - name: "[{{ inventory_hostname }}] Wait until the guest answers over SSH"
+      ansible.builtin.wait_for_connection:
+        timeout: "{{ vm_boot_timeout | default(300) }}"
+        delay: 5
+      when: _snapshot_started_vm | default(false) | bool

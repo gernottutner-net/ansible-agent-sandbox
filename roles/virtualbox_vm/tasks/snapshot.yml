@@ -236,6 +236,14 @@
   when: _snapshot_stopped_vm | default(false) | bool
   changed_when: true
 
+# Read by the snapshot playbook's second play, which waits until a VM
+# started here answers again. Without it, the playbook returns while the
+# guest is still booting, and the next ssh is refused.
+- name: "[{{ vm_name }}] Record that this play started the VM after taking a snapshot"
+  ansible.builtin.set_fact:
+    _snapshot_started_vm: true
+  when: _snapshot_stopped_vm | default(false) | bool
+
 # --- restore ----------------------------------------------------------
 # VirtualBox refuses to restore into a running VM, so power it off first
 # and bring it back up afterwards if it had been running.
@@ -273,6 +281,13 @@
     - snapshot_action in ['restore', 'restorecurrent']
     - _vm_running | bool
   changed_when: true
+
+- name: "[{{ vm_name }}] Record that this play started the VM after the restore"
+  ansible.builtin.set_fact:
+    _snapshot_started_vm: true
+  when:
+    - snapshot_action in ['restore', 'restorecurrent']
+    - _vm_running | bool
 
 # --- delete -----------------------------------------------------------
 - name: "[{{ vm_name }}] Delete snapshot '{{ snapshot_name }}'"

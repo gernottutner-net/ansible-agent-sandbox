@@ -103,6 +103,10 @@ root locked, password logins off, and the root filesystem grown to
 SSH answering does **not** mean cloud-init has finished. The sandbox
 playbook run in that window fails with permission errors.
 
+`snapshot` waits too, with only the first of the two: after `take` or
+`restore` has restarted a VM, it returns once Ansible can reach the guest
+over SSH. A restored guest has been seeded already.
+
 ## Adding a VM
 
 Add it to `agent_sandbox` in `inventory.yml`, and give it a host_vars file
@@ -175,7 +179,8 @@ working set: 1.3 GB for a 6 GB guest, against 163 MB for the disk delta
 beside it. For a rollback point that is pure overhead. So
 `snapshot_poweroff: true` shuts the guest down cleanly (`acpipowerbutton`)
 first, takes the snapshot of the stopped VM, and restarts it if it had been
-running. `snapshot_poweroff: false` keeps the RAM state and uses `--live`.
+running, waiting until the guest answers over SSH. `snapshot_poweroff:
+false` keeps the RAM state and uses `--live`.
 
 ### Re-baselining
 
@@ -210,6 +215,9 @@ For the original pristine state, don't re-baseline: `destroy`, then
 - `take` without `snapshot_name` generates `auto-YYYYmmdd-HHMMSS`.
 - `restore` and `delete` need an explicit `snapshot_name`.
 - `restore` powers a running VM off first and restarts it afterwards.
+- Both `take` and `restore` return only once a VM they restarted answers
+  over SSH again, within `vm_boot_timeout` (300 s by default). A VM that
+  was off stays off and is not waited for.
 - After a restore, Ansible's fact cache may still describe the newer state.
   If anything looks inconsistent, clear it (`.ansible_facts` or whatever
   your `ansible.cfg` names).

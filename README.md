@@ -177,8 +177,9 @@ ansible-playbook tutner.agent_sandbox.destroy                                   
 
 `take` keeps the newest snapshot and the baseline, the root of the tree,
 and merges the rest away; the guest is shut down for it, so no RAM state is
-saved. `destroy` deletes the VM with all its disks and snapshots. With
-more than one VM, add `--limit <vm>`. Details in
+saved. `take` and `restore` restart a VM that was running, and return once
+it answers over SSH again. `destroy` deletes the VM with all its disks and
+snapshots. With more than one VM, add `--limit <vm>`. Details in
 [docs/virtualbox.md](docs/virtualbox.md#snapshots).
 
 ## Sessions
