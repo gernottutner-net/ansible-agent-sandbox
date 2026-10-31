@@ -282,8 +282,9 @@ entry is also a way out for data. Add it to `egress_allowlist`, prefer the
 exact host over a leading dot, and apply with `--tags egress,agentbox`:
 both, because Squid and Claude Code's sandbox each get the list.
 
-`DISABLE_TELEMETRY=1` in the example policy keeps Claude Code from trying
-its telemetry host. `downloads.claude.ai` stays denied: Claude Code falls
+`DISABLE_TELEMETRY=1` and `DISABLE_ERROR_REPORTING=1` in the example policy
+keep Claude Code from trying its telemetry and error-reporting hosts, which
+are not on the allowlist. `downloads.claude.ai` stays denied: Claude Code falls
 back to cloning its plugin marketplace from GitHub, and updates come only
 from an image rebuild.
 
@@ -324,10 +325,7 @@ Not yet tested, and not claimed:
 
 1. **Two concurrent sessions** in different projects, and the RAM they
    need.
-2. **Error reporting's host.** Claude Code's error reporting has not been
-   seen in the Squid log; setting `DISABLE_ERROR_REPORTING=1` would close
-   it.
-3. **Environment variables seen by commands.** Variables passed to the
+2. **Environment variables seen by commands.** Variables passed to the
    session, an API key among them, are probably visible to the commands
    Claude runs. Until this is tested, treat anything in
    `agentbox_claude_env` and the API key secret as readable by them.

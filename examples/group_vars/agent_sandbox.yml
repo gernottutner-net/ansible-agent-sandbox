@@ -44,11 +44,11 @@ sandbox_pids_limit: 256
 sandbox_image_tag: "0.1.0"
 agentbox_claude_code_version: "2.1.284"
 
-# Claude Code's own switches, set in every session. Telemetry off: its
-# Datadog intake stays denied by Squid, and without the attempts the
-# TCP_DENIED lines show only hosts that matter. Error reporting stays on;
-# its host is allowlisted once the log shows it.
+# Claude Code's own switches, set in every session. Telemetry and error
+# reporting off: their hosts are not on the allowlist, and without the
+# attempts the TCP_DENIED lines show only hosts that matter.
 agentbox_claude_env:
+  DISABLE_ERROR_REPORTING: "1"
   DISABLE_TELEMETRY: "1"
 
 # Unattended sessions get no claude.ai connectors: they act on the account
