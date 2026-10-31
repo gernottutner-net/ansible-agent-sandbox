@@ -3,8 +3,9 @@
 Why the sandbox is built the way it is: what each role does and why, the
 policy surface, the launcher contract, what the design knows and what it
 does not, and the decisions behind it. The README says how to use the
-collection; [docs/virtualbox.md](virtualbox.md) covers the VM. This
-document is for anyone who wants to judge whether the sandbox deserves
+collection; [docs/virtualbox.md](virtualbox.md) covers the VM, and
+[docs/release-tests.md](release-tests.md) what was tested before a
+release. This document is for anyone who wants to judge whether the sandbox deserves
 trust, or to change it.
 
 Everything here describes the code as it is, unless a section is marked
@@ -696,7 +697,8 @@ Another path meant to keep the environment from commands,
 
 The three were tested in one session on 2026-10-31, on the collection's
 code, as release tests for the core: 1 and 2 decided what the README may
-claim, 3 the rule for credential extensions. The plan, for repeating the
+claim, 3 the rule for credential extensions; the other release tests are
+in [docs/release-tests.md](release-tests.md). The plan, for repeating the
 tests on a new Claude Code version or a new VM.
 
 Each test is its own `--auto` run in a scratch project, with a

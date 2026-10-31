@@ -335,7 +335,9 @@ from the container lands in a sudo-less account. It does not:
   github.com is as reachable as the rest of github.com.
 
 Why each layer is built the way it is, the findings behind it, and the
-decisions it rests on are in [docs/design.md](docs/design.md).
+decisions it rests on are in [docs/design.md](docs/design.md). What was
+tested before a release, and what the tests found, is in
+[docs/release-tests.md](docs/release-tests.md).
 
 ## Open questions
 
