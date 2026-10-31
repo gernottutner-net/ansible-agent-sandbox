@@ -49,11 +49,13 @@ agentbox_claude_config_dir: "/home/{{ agentbox_image_user }}/.claude"
 
 # Optional. If the sandbox user has a Podman secret by this name, the launcher
 # hands it to the container as ANTHROPIC_API_KEY; otherwise Claude Code uses
-# the login. The repo never holds the token.
+# the login. The repo never holds the token. Every command Claude runs can read
+# the variable: see the README, "What it protects, and what not".
 agentbox_api_key_secret: anthropic_api_key
 
 # Extra environment for Claude Code in every session, rendered into the
-# launcher as --env NAME=value. Policy, so group_vars sets it.
+# launcher as --env NAME=value. Policy, so group_vars sets it. Every command
+# Claude runs inherits it, so it holds switches, never credentials.
 agentbox_claude_env: {}
 
 # Added to agentbox_claude_env in --auto sessions only.

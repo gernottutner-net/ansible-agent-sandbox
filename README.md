@@ -103,7 +103,8 @@ it:
 - `group_vars/all.yml`: sudo for the `ansible` account cloud-init creates.
 - `group_vars/agent_sandbox.yml`: the policy: the allowlist, the limits
   (memory, CPUs, processes), the image tag and Claude Code's version, and
-  environment for Claude Code.
+  environment for Claude Code, which every command Claude runs can read: no
+  credentials there.
 - `ansible.cfg`: pipelining, so Ansible can become the sandbox user, and
   only the VM's own key offered.
 
@@ -198,7 +199,10 @@ agentbox <project> bash         # a shell instead, e.g. to clone first
   (mounted at `/work`) and `~/.agentbox/<project>` (Claude Code's login and
   state) on first use.
 - One session per project at a time: the container is named
-  `agentbox-<project>`.
+  `agentbox-<project>`, and a second one is refused. Sessions in different
+  projects run side by side; two at once, each cloning a repository and
+  running `npm install`, peaked at about 310 MB each of their 2 GiB, on a
+  6 GB VM.
 - Everything outside `/work` and Claude Code's state is gone when the
   session ends (`--rm`).
 - The run policy is rendered into the launcher, not read from the
@@ -230,7 +234,10 @@ prints in a browser and paste the code back. The login is kept per
 project, so projects never see each other's login or transcripts.
 
 Optional, an API key instead: create a Podman secret `anthropic_api_key` as
-`agent`, and the launcher passes it on.
+`agent`, and the launcher passes it on, as the environment variable
+`ANTHROPIC_API_KEY`. Treat it as readable by every command Claude runs (see
+[What it protects, and what not](#what-it-protects-and-what-not)): a key of
+its own, with a spending limit.
 
 ```bash
 read -rs t && printf %s "$t" | podman secret create anthropic_api_key - && unset t
@@ -315,6 +322,14 @@ from the container lands in a sudo-less account. It does not:
   `~/.agentbox/<project>`. After a suspect session: log the sandbox's
   sessions out on claude.ai, delete the project's state directory, and
   restore the VM's snapshot.
+- **keep the session's environment from the commands Claude runs.** Every
+  command inherits it: whatever is in `agentbox_claude_env` or
+  `agentbox_auto_claude_env`, and the API key if there is one, is a
+  `printenv` away. Command lines are readable too, through the container's
+  `/proc`, Claude's prompt among them. What commands cannot read is another
+  process's environment, nor the login, which Claude Code's sandbox denies
+  them as a file. So a credential never goes into the environment or onto a
+  command line.
 - **prevent leaks to allowed hosts.** The allowlist says which
   organisations the agent may talk to, not what it may say: a gist on
   github.com is as reachable as the rest of github.com.
@@ -323,12 +338,12 @@ from the container lands in a sudo-less account. It does not:
 
 Not yet tested, and not claimed:
 
-1. **Two concurrent sessions** in different projects, and the RAM they
-   need.
-2. **Environment variables seen by commands.** Variables passed to the
-   session, an API key among them, are probably visible to the commands
-   Claude runs. Until this is tested, treat anything in
-   `agentbox_claude_env` and the API key secret as readable by them.
+1. **Heavier work in two concurrent sessions.** Two sessions doing a clone
+   and `npm install` fit with room to spare; builds and test suites were
+   not measured.
+2. **`ANTHROPIC_API_KEY` withheld by name.** The environment was tested with a
+   variable of another name; whether Claude Code keeps its API key variable
+   from its commands is not known. Assume it does not.
 
 ## Licence
 
