@@ -5,6 +5,13 @@ level.
 
 ## [Unreleased]
 
+### 2026-10-31
+
+#### Changed
+
+- `virtualbox_vm`: the snapshot state file is written to `snapshot_state_dir`, next to the inventory, as documented. `tasks/snapshot.yml` still built its path from `playbook_dir`, so with the installed collection it landed inside the collection, under `playbooks/state/`, and a reinstall would lose the recorded baseline.
+- `examples/group_vars/agent_sandbox.yml`: `production.cloudfront.docker.com` added to `egress_allowlist`. Docker Hub now serves image blobs from there, and without it the first image build fails: Squid answers 403 on the pull of `debian:trixie-slim`.
+
 ### 2026-10-30
 
 #### Added

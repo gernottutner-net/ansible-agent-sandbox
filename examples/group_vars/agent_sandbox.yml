@@ -28,6 +28,7 @@ egress_allowlist:
   - deb.nodesource.com      # Node in the image build
   - .docker.io              # image pulls: registry-1., auth.
   - .cloudflare.docker.com
+  - production.cloudfront.docker.com   # image blobs, since Docker Hub moved them to CloudFront
   - docs.python.org         # documentation the agent may read
   - developer.mozilla.org
   - docs.ansible.com

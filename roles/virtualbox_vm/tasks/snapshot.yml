@@ -55,7 +55,7 @@
 # renamed.
 - name: "[{{ vm_name }}] Locate this host's snapshot state file"
   ansible.builtin.set_fact:
-    _snapshot_state_file: "{{ playbook_dir }}/state/{{ inventory_hostname }}-snapshot.yml"
+    _snapshot_state_file: "{{ snapshot_state_dir }}/{{ inventory_hostname }}-snapshot.yml"
 
 - name: "[{{ vm_name }}] Check for a recorded baseline"
   ansible.builtin.stat:
