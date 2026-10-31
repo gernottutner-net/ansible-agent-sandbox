@@ -334,6 +334,9 @@ from the container lands in a sudo-less account. It does not:
   organisations the agent may talk to, not what it may say: a gist on
   github.com is as reachable as the rest of github.com.
 
+Why each layer is built the way it is, the findings behind it, and the
+decisions it rests on are in [docs/design.md](docs/design.md).
+
 ## Open questions
 
 Not yet tested, and not claimed:

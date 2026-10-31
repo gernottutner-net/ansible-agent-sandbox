@@ -9,6 +9,8 @@ level.
 
 #### Added
 
+- `docs/design.md`: the design behind the collection, edited from the private repository's design docs for the public: the layers, the sandbox account, the four roles with their traps and the finding on what a pasta container can reach, the policy surface, the launcher contract, "Secrets, honestly", core and extensions, the extension points (planned), the rules for extensions and the security boundary (proposed), the known unknowns with their results and the plan they were tested by, the possible features, why not bare metal, the decisions in force with their reasoning, and gVisor in a section of its own, marked experimental. New in it: the rule for credential extensions, which follows from the test of the environment: no credential in the environment or on a command line; a file under the credentials deny where Claude Code reads it; a narrow scope, and saying so, where a command such as git does. The README's "What it protects, and what not" points to it.
+
 - README: new section "Check the sandbox", listed in the table of contents: the smoke tests to run once as `agent` after the first `sandbox` run and before the baseline snapshot. They check that the memory limit binds, an allowlisted host works through the proxy, a host not on the list gets Squid's 403, a direct connection past the proxy is refused, no resolver answers, and the launcher runs as uid 1000 with the policy's limits and the pinned Claude Code. The proxy address is read from `$https_proxy`, which Podman's `containers.conf` hands to every container. The step to take the baseline moved there from "Create the VM and the sandbox", and `docs/virtualbox.md` says to take it after the smoke tests.
 
 #### Changed
