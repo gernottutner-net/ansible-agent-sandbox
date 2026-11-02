@@ -1,6 +1,6 @@
 # A sandbox for agentic coding on VirtualBox
 
-![A retro robot works happily at a desk in a cosy room behind prison bars: a disposable VM, rootless Podman and an egress allowlist](docs/images/README_banner.png)
+![A hooded robot with red eyes sits at a desk behind prison bars, its terminal answering `sudo: not found`, under a "World domination (pending approval)" poster: a disposable VM, rootless Podman and an egress allowlist](docs/images/README_banner.png)
 
 An Ansible collection, `tutner.agent_sandbox`, for a sandbox for agentic
 coding with Claude Code **on VirtualBox**, end to end: it creates the
@@ -106,7 +106,7 @@ you already have, and install it with
 collections:
   - name: https://github.com/gernottutner-net/ansible-agent-sandbox.git
     type: git
-    version: v0.1.0
+    version: v0.2.0
 ```
 
 ## Configure

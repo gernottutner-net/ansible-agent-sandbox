@@ -5,6 +5,14 @@ level.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-03 — Repository Tokens
+
+### 2026-11-03
+
+#### Changed
+
+- README: a new banner, `docs/images/README_banner.png` (1280×640, also GitHub's social preview): a hooded robot with red eyes at a desk behind prison bars, its terminal answering `sudo: not found`, under a "World domination (pending approval)" poster, with the collection's name, its tagline "Let it work. Keep it in." and its four layers. Stripped of metadata; the alt text describes it.
+
 ### 2026-11-02
 
 #### Added
