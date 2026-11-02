@@ -1,7 +1,7 @@
 # Release tests
 
-What is tested before a release, and what the runs before `v0.1.0` covered
-and found. The [README](../README.md) says how to use the collection,
+What is tested before a release, what the runs before `v0.1.0` covered
+and found, and the first install of the release from GitHub. The [README](../README.md) says how to use the collection,
 [docs/virtualbox.md](virtualbox.md) covers the VM, and
 [docs/design.md](design.md) why the sandbox is built the way it is.
 
@@ -25,6 +25,7 @@ led to.
   - [Third run](#third-run)
   - [Upgrade of an existing install](#upgrade-of-an-existing-install)
   - [The known unknowns](#the-known-unknowns)
+- [The install of v0.1.0 from GitHub](#the-install-of-v010-from-github)
 - [Not covered yet](#not-covered-yet)
 
 ---
@@ -240,10 +241,23 @@ open is in the README's [Open questions](../README.md#open-questions).
 It led to `47c1e78` (the README on what commands can read) and `a7973ec`
 (`DISABLE_ERROR_REPORTING` in the example policy).
 
+## The install of v0.1.0 from GitHub
+
+On 2026-11-02, after `v0.1.0` (`db0261d`) was pushed: the collection
+installed from the GitHub URL at the tag, with `--force` over the copy
+the upgrade test had installed from a local clone, as under
+[Install](../README.md#install).
+
+| Check | Result |
+|---|---|
+| The install | `tutner.agent_sandbox:0.1.0`, cloned at `db0261d` |
+| `diff -r` against `git archive v0.1.0` | identical, except that the build turns `galaxy.yml` into `MANIFEST.json` and `FILES.json` |
+| The sandbox roles with `--check --diff`, on the VM of the [upgrade test](#upgrade-of-an-existing-install) | nothing to change, no diff |
+
+Nothing found.
+
 ## Not covered yet
 
-- An install from the GitHub URL: the collection is not published yet.
-  The first one is part of the `v0.1.0` release.
 - Heavier work in two concurrent sessions, and whether Claude Code
   withholds `ANTHROPIC_API_KEY` from its commands by name; see the
   README's [Open questions](../README.md#open-questions).

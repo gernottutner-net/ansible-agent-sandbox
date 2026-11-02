@@ -5,6 +5,12 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-02
+
+#### Added
+
+- `docs/release-tests.md`: new section "The install of v0.1.0 from GitHub", listed in the table of contents: the first install from the GitHub URL at the tag, identical to the tag apart from the built `MANIFEST.json` and `FILES.json`, and the sandbox roles with `--check --diff` on the VM of the upgrade test, with nothing to change. The install from GitHub is gone from "Not covered yet".
+
 ### 2026-10-31
 
 #### Added
