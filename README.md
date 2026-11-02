@@ -83,11 +83,23 @@ carries a copy of that one as its own.
 
 ## Install
 
+You don't need an existing Ansible project. The collection is a package:
+installed once, it can be used from any directory.
+
 ```bash
 ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git
 ```
 
-Or pin a release in `requirements.yml`:
+It goes into the first entry of Ansible's collections path, by default
+`~/.ansible/collections/ansible_collections/tutner/agent_sandbox/`, for
+your user only. `-p <dir>` installs it somewhere else; that directory must
+then be on `collections_path` in `ansible.cfg`.
+`ansible-galaxy collection list tutner.agent_sandbox` shows where it is and
+which version.
+
+Or pin a release in `requirements.yml`, for example in an Ansible project
+you already have, and install it with
+`ansible-galaxy collection install -r requirements.yml`:
 
 ```yaml
 collections:
@@ -98,8 +110,10 @@ collections:
 
 ## Configure
 
-Copy `examples/` from this repository into a working directory and adapt
-it:
+The collection brings the playbooks and roles; what you supply is
+configuration only. Copy `examples/` from this repository into a working
+directory of your own; it is the whole working directory, no playbooks of
+your own needed. Then adapt it:
 
 - `inventory.yml`: the VM, in the group `agent_sandbox`.
 - `host_vars/sandbox-vm.yml`: the VM's host-only address, its two MACs,
@@ -111,6 +125,11 @@ it:
   credentials there.
 - `ansible.cfg`: pipelining, so Ansible can become the sandbox user, and
   only the VM's own key offered.
+
+Run every `ansible-playbook` command below from inside that directory:
+Ansible reads `ansible.cfg` from the current directory, and through it
+finds the inventory. Started anywhere else, it runs with another
+`ansible.cfg` and inventory, or none.
 
 ## Create the VM and the sandbox
 
