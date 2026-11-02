@@ -231,6 +231,10 @@ For unattended runs: put the task in single quotes; add `< /dev/null` to
 skip the wait for stdin; add `--verbose --output-format stream-json` and
 redirect to a file to see which tools Claude called.
 
+`-p` prints nothing until Claude is done. A long silence need not be a
+hang: an overloaded API answers `529 Overloaded`, and Claude Code retries
+quietly for a while before it gives up.
+
 ### Logging in
 
 The first session in a project asks for the Claude login: open the URL it
@@ -277,6 +281,18 @@ it off or widen it. For the commands Claude runs:
 Deny rules keep Claude's Read and Edit tools off the login and the
 settings. Commands you type yourself at Claude Code's `!` prompt are not
 sandboxed.
+
+To see that a command Claude runs really is inside the sandbox, have it run
+something slow (`sleep 60`) and look from a second shell as `agent`. The
+image has no `ps`; `podman top` reads the processes from outside:
+
+```bash
+podman top agentbox-<project> pid ppid args | cut -c1-80
+```
+
+PID 1 is `/run/podman-init`, `claude` its child, and the command runs below
+a `bwrap --new-session …` pair. `[bwrap]` in brackets would be a zombie;
+the launcher's `--init` reaps them.
 
 ## Egress
 

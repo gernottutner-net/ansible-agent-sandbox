@@ -9,6 +9,7 @@ level.
 
 #### Added
 
+- README, "Autonomous mode": a long silence of `-p` need not be a hang; an overloaded API answers `529 Overloaded`, which Claude Code retries quietly before it gives up. "Claude Code's own sandbox": how to see that a command Claude runs is inside the sandbox, with `podman top` from a second shell, and what to expect (`/run/podman-init`, `claude`, the command below `bwrap --new-session`). Both taken from the private repository's notes.
 - `dev/releasing.md`: how this collection is released. What a tag means (never moved once pushed; not every commit tagged), which version a change gets (patch, minor, none for docs, 1.0.0 once the extension points are stable), the steps of a release, and the GitHub release that follows every tag (title, short notes with links at the tag, no pre-release for 0.x, no artefacts). `.claude/CLAUDE.md` refers to it, adds `dev/` to the doc files, and has the check before every commit whether a release is due and which version. Its rule on naming the AI model in commit messages now counts the `Co-Authored-By` trailer, so the model is no longer named twice.
 
 - `docs/release-tests.md`: new section "The install of v0.1.0 from GitHub", listed in the table of contents: the first install from the GitHub URL at the tag, identical to the tag apart from the built `MANIFEST.json` and `FILES.json`, and the sandbox roles with `--check --diff` on the VM of the upgrade test, with nothing to change. The install from GitHub is gone from "Not covered yet".
