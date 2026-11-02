@@ -132,7 +132,9 @@ removed.
 
 A snapshot freezes the VM's disk at a moment; restoring throws away
 everything since. It is a whole-machine undo, not a backup: it lives on the
-same disk as the VM.
+same disk as the VM. Long chains of snapshots slow disk I/O and take up
+space, which is why `take` prunes (see
+[Retention](#retention-one-rolling-snapshot-plus-the-baseline)).
 
 For the sandbox, it is the cheap way back after a session you do not trust:
 
@@ -263,18 +265,39 @@ static address survives any interface renaming.
 
 Verified against 7.0.26:
 
-1. The `modifyvm` flags are the hyphenated 7.0 spellings
-   (`--host-only-adapter2`, `--nic-type1`, `--cable-connected1`,
-   `--mac-address1`, `--os-type`). 7.1 still accepts them; the playbook
-   warns on any version that is not 7.0.
+1. The `modifyvm` flags are the hyphenated 7.0 spellings. The 6.x names
+   still work as aliases, but are no longer what 7.0 documents:
+
+   | 6.x | 7.0 (used here) |
+   |---|---|
+   | `--hostonlyadapter2` | `--host-only-adapter2` |
+   | `--nictype1` | `--nic-type1` |
+   | `--cableconnected1` | `--cable-connected1` |
+   | `--macaddress1` | `--mac-address1` |
+   | `--ostype` (on `modifyvm`) | `--os-type` |
+
+   7.1 still accepts them; the playbook warns on any version that is not
+   7.0.
 2. `createvm` takes `--ostype`, `modifyvm` takes `--os-type`. Both are
    right.
-3. `showvminfo --machinereadable` still prints the old key names.
+3. `showvminfo --machinereadable` still prints the old key names
+   (`hostonlyadapter2`, `nictype2`, `macaddress2`): the flags going in are
+   hyphenated, the keys coming out are not. It matters if you parse that
+   output.
 4. There is no `Debian13_64` OS type in 7.0, so `Debian_64` is used. It is a
-   GUI label only; the guest is Debian 13 because of the image.
+   GUI label only: it sets the creation wizard's default hardware, which
+   `modifyvm` and `storagectl` override anyway, and has no effect at run
+   time. The guest is Debian 13 because of the image. To check:
+
+   ```bash
+   ansible sandbox-vm -m command -a 'head -2 /etc/os-release'
+   ```
+
 5. `modifymedium --resize` does not work on VMDK, hence the resize while the
    image is still qcow2.
-6. The VMDK subformat is pinned to `monolithicSparse`.
+6. The VMDK subformat is pinned to `monolithicSparse` rather than left to
+   `qemu-img`'s default, which has varied between releases. It is
+   dynamically allocated.
 7. `unregistervm --delete` plus a `closemedium dvd … --delete` for the seed
    ISO, not `--delete-all`. `--delete-all` fails as soon as the seed ISO is
    referenced more than once, by the current state and a snapshot, as on
@@ -283,6 +306,8 @@ Verified against 7.0.26:
    not ready"), leaving the disk registered and the `.vbox` behind.
    `--delete` alone leaves the ISO registered, which blocks a later
    re-create, hence the `closemedium`.
+8. `qemu-img` on an Ubuntu 22.04 host is 6.2: old, but it handles the
+   `resize` and the `convert -O vmdk` correctly.
 
 ## KVM conflict
 

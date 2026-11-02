@@ -11,6 +11,10 @@ level.
 
 - `docs/release-tests.md`: new section "The install of v0.1.0 from GitHub", listed in the table of contents: the first install from the GitHub URL at the tag, identical to the tag apart from the built `MANIFEST.json` and `FILES.json`, and the sandbox roles with `--check --diff` on the VM of the upgrade test, with nothing to change. The install from GitHub is gone from "Not covered yet".
 
+#### Changed
+
+- `docs/virtualbox.md`, "VirtualBox 7.0 specifics": the 6.x and 7.0 names of the `modifyvm` flags as a table; the old key names `showvminfo` prints and why they matter; why `Debian_64` is only a GUI label, with a command to check the guest's release; why the VMDK subformat is pinned; new item 8, `qemu-img` 6.2 on an Ubuntu 22.04 host being enough. "Snapshots": long chains slow disk I/O and take space, which is why `take` prunes. All taken from the private repository's README, where they were documented before.
+
 ### 2026-10-31
 
 #### Added
