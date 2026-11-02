@@ -114,9 +114,29 @@
     argv: [VBoxManage, showvminfo, "{{ vm_name }}", --machinereadable]
   register: _poweroff_poll
   changed_when: false
-  until: "'VMState=\"running\"' not in _poweroff_poll.stdout"
+  # While the VM is stopping, showvminfo can exit 1 with "The object is not
+  # ready" (E_ACCESSDENIED from the console being torn down): poll on, and
+  # wait for a state that is really off, not merely "not running".
+  # Exhausted retries do not fail a task with failed_when: false, so the
+  # assert below decides.
+  failed_when: false
+  until: >-
+    _poweroff_poll.rc == 0 and
+    _poweroff_poll.stdout is regex('^VMState="(poweroff|aborted)"$', multiline=True)
   retries: "{{ ((snapshot_poweroff_timeout | default(120) | int) / 5) | round(0, 'ceil') | int }}"
   delay: 5
+  when: _snapshot_stopped_vm | default(false) | bool
+
+- name: "[{{ vm_name }}] Refuse to snapshot a guest that did not stop"
+  ansible.builtin.assert:
+    that:
+      - _poweroff_poll.rc == 0
+      - _poweroff_poll.stdout is regex('^VMState="(poweroff|aborted)"$', multiline=True)
+    fail_msg: >-
+      '{{ vm_name }}' did not power off within
+      {{ snapshot_poweroff_timeout | default(120) }} s; no snapshot taken.
+      {{ _poweroff_poll.stderr | default('') }}
+    quiet: true
   when: _snapshot_stopped_vm | default(false) | bool
 
 # Split into two tasks rather than conditionally appending to argv: --live
