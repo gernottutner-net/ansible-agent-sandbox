@@ -111,9 +111,9 @@ collections:
 ## Configure
 
 The collection brings the playbooks and roles; what you supply is
-configuration only. Copy `examples/` from this repository into a working
-directory of your own; it is the whole working directory, no playbooks of
-your own needed. Then adapt it:
+configuration only. Copy the contents of `examples/` from this repository
+into a working directory of your own; it is the whole working directory, no
+playbooks of your own needed. Then adapt it:
 
 - `inventory.yml`: the VM, in the group `agent_sandbox`.
 - `host_vars/sandbox-vm.yml`: the VM's host-only address, its two MACs,
