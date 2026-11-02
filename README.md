@@ -349,6 +349,11 @@ them on its own, through a credential helper in the image, so the token
 never ends up in `.git/config` or a remote URL; the launcher names each
 token's host and lifetime as the session starts.
 
+Claude Code's sandbox keeps the commands Claude runs from writing
+`.git/config`: Claude can commit and push, but `git push -u` records no
+upstream, though it says so and exits 0, and `git config` in the
+repository fails. Set those up in `agentbox <project> bash`.
+
 A token is readable by every command Claude runs: git is one of them, and
 has to read it. Claude's Read tool can read it too: a deny rule for the
 tool would hide it from git as well. So the token's scope is what limits

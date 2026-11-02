@@ -1,7 +1,8 @@
 # Release tests
 
 What is tested before a release, what the runs before `v0.1.0` covered
-and found, and the first install of the release from GitHub. The [README](../README.md) says how to use the collection,
+and found, the first install of that release from GitHub, and the release
+test of `v0.2.0`. The [README](../README.md) says how to use the collection,
 [docs/virtualbox.md](virtualbox.md) covers the VM, and
 [docs/design.md](design.md) why the sandbox is built the way it is.
 
@@ -26,6 +27,10 @@ led to.
   - [Upgrade of an existing install](#upgrade-of-an-existing-install)
   - [The known unknowns](#the-known-unknowns)
 - [The install of v0.1.0 from GitHub](#the-install-of-v010-from-github)
+- [The release test of v0.2.0](#the-release-test-of-v020)
+  - [The run](#the-run)
+  - [Upgrade from v0.1.0](#upgrade-from-v010)
+  - [Findings](#findings)
 - [Not covered yet](#not-covered-yet)
 
 ---
@@ -257,13 +262,99 @@ the upgrade test had installed from a local clone, as under
 
 Nothing found.
 
+## The release test of v0.2.0
+
+On 2026-11-02, before `v0.2.0` was tagged, with the collection installed
+from a local clone with `git+file://…` and `--force`.
+
+### The run
+
+A new VM named `sandbox-vm`, with the example's name, address and MACs;
+the VM of the [upgrade test](#upgrade-of-an-existing-install) was
+destroyed first. `examples/` copied in afresh from `e31a15e` and checked
+with `diff -r`; host_vars changed only in the two key paths, for a new
+key, and in `agentbox_git_tokens` for step 5. Steps 1 to 5 ran on
+`e31a15e`; step 6 failed, and steps 6 to 9 ran on `6a30875`, its fix,
+which changes only `roles/virtualbox_vm/tasks/snapshot.yml`, a file the
+earlier steps do not run. Each install's roles and playbooks were
+identical to its commit's. Every playbook passed `--syntax-check`.
+
+| # | Step | Result |
+|---|---|---|
+| 1 | `provision` | passes: `changed=15`, cloud-init done |
+| 2 | `sandbox`, first run | passes, image build included: `changed=30`, one more than `v0.1.0`, for the credential helper the Containerfile copies |
+| 3 | `sandbox`, second run | `changed=0` |
+| 4 | Smoke tests from the README, word for word, as `agent` | all pass, with the values of the runs before; `~/projects` and `~/.agentbox` left empty |
+| 5 | Repository tokens, for a private GitHub repository kept for tests, with a fine-grained token from a `pass`-backed credential helper on the controller | `git_token` wrote each project's token, `changed=2`, files `0600` in directories `0700`, the token in neither log. **`session`, in `agentbox rt-s bash`**: clone, commit and push of a branch; the launcher named the token's host and lifetime; no token in `.git/config` or a remote URL, the only credential setting `credential.helper=agentbox` from `/etc/gitconfig`, no `~/.git-credentials`, no file in `/work` or the home directory with the token's prefix; the token gone after the session. With a new `session` token, the session started behind `ssh -tt`: the token mounted `ro`, a write refused, a second start in the project refused with the token kept; `kill -9` on the `ssh` client, and container and token were gone within a second. **`permanent`, with Claude** (`agentbox --auto rt-p -p …`, cloning into a subdirectory): clone, commit and push of a branch through Claude's sandbox; the token in neither the state directory, the transcript, `/work` nor the stream-json output. Finding 1 below. Both branches deleted with `git push --delete` from a session; `remove` left nothing; `~/projects`, `~/.agentbox` and `~/.agentbox-tokens` left empty |
+| 6 | `snapshot` take `base` | **fails** on `e31a15e`: finding 2. On `6a30875`, with the VM started again by `provision` (`changed=1`): passes, `changed=5`, the poll waiting through seven retries, about 40 s, for the guest to stop; the state file next to the inventory, the collection holds none |
+| 7 | take `pre-session`, restore `pre-session`, restore `base` | pass: `changed=3` each. `ssh` right after each connects. After `pre-session` only the marker written before it is there; after `base`, neither |
+| 8 | `sandbox` afterwards | `changed=0` |
+| 9 | `destroy --limit sandbox-vm -e destroy_confirm=yes` | passes in 8.3 s on the running VM with two snapshots, `base` and `pre-tests`: `changed=5`. No VM, no registered disk or DVD, no machine folder, no build artefacts; the base image cache stays. The state file then deleted by hand |
+
+The [known unknowns](design.md#how-they-were-tested) ran between steps 8
+and 9, on the same VM, from a snapshot `pre-tests`:
+
+| Part | Result |
+|---|---|
+| The canary | `--check --diff`: only the launcher, one `--env` line; applied, `changed=1`; removed afterwards, `grep -c` `0`, and `sandbox` `changed=0` |
+| E1 to E5 | as on 2026-10-31: the canary in a command's environment; `/proc/1/environ` and `/proc/2/environ` denied, only `/proc/self/environ` has it; the Read tool refuses `/proc`; every command line readable, the `-p` prompt included. New: `bwrap`'s command line also carries the credentials of Claude Code's own sandbox proxy on `localhost:3128`, which the commands go through anyway. The canary landed in two transcripts, where Claude quoted it |
+| Error reporting's switch | the image's Claude Code (2.1.284) knows `DISABLE_ERROR_REPORTING` |
+| Two sessions at once | both cloned and installed, exit codes 0; lowest `available` 4952 of 5931 MB, about 245 MB per container at the 10 s samples, no swap, no OOM kill. The first try found both clones already there, from a run interrupted at the controller that had reached the VM; they were deleted and the test repeated |
+| The Squid log | reached: `api.anthropic.com`, `platform.claude.com`, `raw.githubusercontent.com`, `github.com`, `registry.npmjs.org`; denied on purpose: `downloads.claude.ai`; no telemetry or error-reporting host attempted |
+
+### Upgrade from v0.1.0
+
+A new VM from `v0.1.0` (`db0261d`): its `examples/` unchanged, the
+collection installed at the tag; `provision` `changed=15`, `sandbox`
+`changed=29`, then `changed=0`. Then the collection at `6a30875`:
+
+| Step | Result |
+|---|---|
+| `sandbox --check --diff`, `sandbox_image_tag` still `0.1.0` | refused, as CHANGES.md says: `localhost/agentbox:0.1.0 exists but was built from a different recipe (no label, …). Bump sandbox_image_tag …`; "no label", since the label was renamed |
+| the same with `0.2.0` | `changed=4`: the Containerfile with the credential helper, the helper, `Edit(//run/agentbox/**)` in the managed settings, the launcher; finding 3 |
+| `sandbox`, applied | `changed=5`: the same four and the image build |
+| `sandbox --check --diff` again, and a plain run | `changed=0` |
+| The launcher | `agentbox:0.2.0`, uid 1000 `dev`, Claude Code 2.1.284, `credential.helper=agentbox`; the `0.1.0` image kept for going back |
+
+This VM was kept.
+
+### Findings
+
+1. **Claude cannot write `.git/config` inside its sandbox.** `git push -u`
+   pushed, then failed to record the upstream with `could not write config
+   file .git/config: Device or resource busy`, and still printed "set up
+   to track" and exited 0. Claude Code's sandbox mounts over the file, as
+   it puts `/dev/null` stand-ins into `/work`
+   ([Findings on the VM](design.md#findings-on-the-vm) 4): its behaviour,
+   not the collection's. The README's [Repository tokens](../README.md#repository-tokens)
+   now says to set a branch's upstream and other git configuration in
+   `agentbox <project> bash`.
+2. **`snapshot` take failed while the guest was stopping.** The poll for
+   the guest to stop runs `VBoxManage showvminfo`, which exited 1 with
+   `E_ACCESSDENIED` ("The object is not ready") while the VM was
+   `stopping`; the play ended with the VM off and no snapshot. A race: the
+   [third run](#third-run) passed the same step. And `stopping` counted as
+   stopped. Fixed as `6a30875`: the poll goes on through the error, waits
+   for `poweroff` or `aborted`, and an assert refuses the snapshot if the
+   guest did not stop in time, since exhausted retries do not fail a task
+   with `failed_when: false`. Checked against a stand-in command for the
+   error followed by `poweroff`, `poweroff`, `aborted`, `running`, the
+   error throughout and another error, then on the VM in steps 6 and 7.
+3. **`--check --diff` does not show an image rebuild.** The build task is
+   skipped in check mode, so a release that changes the recipe shows only
+   the Containerfile's diff, not that the run will build; already so in
+   `v0.1.0`. Not fixed: proposed, a task that reports `changed` in check
+   mode when the tag is missing.
+
 ## Not covered yet
 
 - Heavier work in two concurrent sessions, and whether Claude Code
   withholds `ANTHROPIC_API_KEY` from its commands by name; see the
   README's [Open questions](../README.md#open-questions).
-- The upgrade test from one release of the collection to the next: there
-  is no earlier release.
-- Repository tokens (step 5) on a new VM: built after `v0.1.0`, and tested
-  on an existing one, by hand; see
-  [docs/design.md, "What was tested"](design.md#what-was-tested).
+- Repository tokens: a push to a protected branch, which tests the remote,
+  not the collection; `SIGINT` and `SIGTERM` to the launcher on the VM,
+  tested only against a stand-in `podman`; a self-hosted GitLab in a
+  release test, tested only by hand
+  ([docs/design.md, "What was tested"](design.md#what-was-tested)).
+- `--check --diff` showing an image rebuild: finding 3 of the
+  [release test of v0.2.0](#findings), not fixed.
