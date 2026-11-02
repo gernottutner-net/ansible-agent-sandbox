@@ -124,7 +124,8 @@ playbooks of your own needed. Then adapt it:
   environment for Claude Code, which every command Claude runs can read: no
   credentials there.
 - `ansible.cfg`: pipelining, so Ansible can become the sandbox user, and
-  only the VM's own key offered.
+  only the VM's own key offered. A commented-out `log_path` turns on a log
+  file; Ansible writes none by default.
 
 Run every `ansible-playbook` command below from inside that directory:
 Ansible reads `ansible.cfg` from the current directory, and through it
