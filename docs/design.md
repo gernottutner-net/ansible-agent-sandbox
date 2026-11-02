@@ -38,6 +38,13 @@ named are the ones tested: Debian 13, Podman 5.4.2, Squid 6.13, kernel
 - [The policy surface](#the-policy-surface)
 - [The launcher contract](#the-launcher-contract)
 - [Secrets, honestly](#secrets-honestly)
+- [Repository tokens](#repository-tokens)
+  - [Two lifetimes](#two-lifetimes)
+  - [Where a token comes from](#where-a-token-comes-from)
+  - [The playbook `git_token`](#the-playbook-git_token)
+  - [In the session](#in-the-session)
+  - [What it does not protect](#what-it-does-not-protect)
+  - [Done would mean](#done-would-mean)
 - [Core and extensions](#core-and-extensions)
 - [Extension points](#extension-points)
 - [Extensions and the security boundary](#extensions-and-the-security-boundary)
@@ -46,7 +53,6 @@ named are the ones tested: Debian 13, Podman 5.4.2, Squid 6.13, kernel
 - [Possible features](#possible-features)
   - [An API key for unattended runs](#an-api-key-for-unattended-runs)
   - [Unattended starts](#unattended-starts)
-  - [Private repositories](#private-repositories)
 - [Why not bare metal](#why-not-bare-metal)
 - [gVisor, the experimental extension](#gvisor-the-experimental-extension)
   - [Why it is not in the core](#why-it-is-not-in-the-core)
@@ -608,7 +614,143 @@ this design does neither, and the limits are stated rather than glossed:
 
 `~/.ssh` on the VM is never mounted into a container. If an agent needs to
 push, that is a scoped token through the proxy, not a key (see
-[Private repositories](#private-repositories)).
+[Repository tokens](#repository-tokens)).
+
+---
+
+## Repository tokens
+
+*Planned: designed, not built.* Projects are cloned inside the container
+over HTTPS through Squid ([Decisions](#decisions) 10). That works without
+a credential only for reading a public repository. Cloning a private one,
+or pushing to any repository, public or private, needs a token in the
+session. This section is how a project gets one; the decision behind it is
+[Decisions](#decisions) 18.
+
+### Two lifetimes
+
+Every token belongs to one project and has one of two lifetimes:
+
+| | `session` | `permanent` |
+|---|---|---|
+| Kept on the VM in | `$XDG_RUNTIME_DIR/agentbox/tokens/session/<project>/`, on tmpfs | `~agent/.agentbox-tokens/<project>/`, mode `0700`, on disk |
+| Lasts | until the project's next session ends: the launcher deletes it then, and a reboot clears it before | until removed |
+| In snapshots | never: `take` shuts the guest down, which empties tmpfs | in every snapshot taken while it is there |
+
+A `session` token bounds where the token is kept, not how long it is
+valid: at GitHub or GitLab it stays valid after the session, until its
+expiry or until it is revoked there. A token that really lives for one
+session would be minted by the controller for it and revoked after, for
+example a GitHub App installation token, which expires after an hour, or
+a GitLab project access token created through the API. Not part of this
+design.
+
+### Where a token comes from
+
+From the controller's own git, through `git credential fill`. The
+collection never touches a password store, so whatever credential helper
+the controller uses answers: one backed by `pass`, libsecret, `gh auth`,
+the macOS keychain. The project's tokens are named in the inventory,
+which says only where a token is, never what it is:
+
+```yaml
+agentbox_git_tokens:
+  myproj:
+    - url: https://github.com/<owner>/<repo>
+      lifetime: session                 # or: permanent
+      git_config:                       # optional: -c options for git credential fill,
+        credential.<setting>: <value>   #   e.g. the one a helper picks the token by
+```
+
+`git_config` exists because a helper may need to be told which token to
+return: a helper that picks a token by a per-repository setting finds no
+repository on the controller, and gets the setting this way instead.
+
+How the token is fetched:
+
+- `git credential fill` runs on the controller with a request of
+  `protocol`, `host` and `path` from `url`, the `git_config` entries as
+  `-c` options, and `GIT_TERMINAL_PROMPT=0`, so a helper that does not
+  answer fails the run rather than waiting for a password.
+- It runs with `/` as its working directory. From inside a repository,
+  that repository's own credential settings would apply, and could answer
+  with another project's token.
+- The token travels on stdin and stdout only, never as an argument, and
+  every task that holds it has `no_log`. It is never handed back to git
+  with `approve`, so no helper is asked to store it.
+- One token per host and project; the file on the VM is named by the
+  host. A fine-grained token covers several repositories of one owner.
+- The host must be on `egress_allowlist`, exactly or under a leading dot;
+  otherwise the run fails before it fetches anything. A self-hosted GitLab
+  is added to the allowlist first, with what that means for exfiltration
+  ([`egress_proxy`](#egress_proxy-default-deny-with-exceptions)).
+
+### The playbook `git_token`
+
+Tokens are not part of the policy, so the `sandbox` run never touches
+them, and needs no unlocked password store. A playbook of their own
+writes and removes them:
+
+```bash
+ansible-playbook tutner.agent_sandbox.git_token -e project=myproj                            # write
+ansible-playbook tutner.agent_sandbox.git_token -e project=myproj -e git_token_action=remove # remove both lifetimes
+```
+
+Writing fetches every token of the project and puts each in the place its
+lifetime says, replacing what was there. That is also how a token is
+rotated. A `session` token is written just before the session it is
+meant for.
+
+### In the session
+
+- **The launcher.** If the project has a `session` token directory, the
+  launcher renames it to one for this run, mounts it read-only at
+  `/run/agentbox/git/session/`, and deletes it when the container exits,
+  also on `SIGHUP`, `SIGINT` and `SIGTERM`. So it no longer `exec`s
+  `podman run` but waits for it. A token written while a session runs
+  waits for the next one. A `permanent` token directory is mounted
+  read-only at `/run/agentbox/git/permanent/`. In keeping with the
+  visibility rule ([Extensions and the security boundary](#extensions-and-the-security-boundary)),
+  the launcher prints each token's host and lifetime at the start, never
+  its value.
+- **The image** gets a credential helper, `git-credential-agentbox`,
+  registered for every host in `/etc/gitconfig`. For `get` it returns the
+  file for the requested host, `session` before `permanent`; `store` and
+  `erase` do nothing, which matters because git calls `store` after every
+  successful authentication. The token therefore never lands in
+  `/work/.git/config`, in a remote URL or in a `~/.git-credentials`.
+- **The managed settings** deny Claude's Read and Edit tools
+  `/run/agentbox/**`, so the token does not reach a transcript through a
+  casual look at the file.
+
+### What it does not protect
+
+git is a command, so the token is readable by every command Claude runs,
+whatever the route: a credentials deny would keep it from git too, and
+running git outside the inner sandbox (`excludedCommands`) would run its
+hooks and aliases outside it as well. This is the third case of the
+[rule for credential extensions](#extensions-and-the-security-boundary).
+The limit is the token's scope, not its secrecy:
+
+- one repository, or the few the project needs;
+- contents read, or read and write; no admin rights, no workflows;
+- an expiry, short for `session` tokens;
+- branch protection on the remote, which is what keeps an agent off
+  `main`, not the sandbox.
+
+A token that can push can push the project's content anywhere it
+reaches, and a token that can read reaches every repository in its scope.
+The README says so where it shows the feature.
+
+### Done would mean
+
+A private repository cloned, changed and pushed to a branch from a
+session, with each lifetime; the token absent from `/work`, from
+`git config` and from the transcript; the `session` token gone from the
+VM after the session, also after the SSH connection dropped; no other
+project's session given it; a push to a protected branch refused; a host
+off the allowlist refused by the playbook. Then it moves into the release
+tests.
 
 ---
 
@@ -622,8 +764,10 @@ roles are named `tutner.agent_sandbox.<role>`.
 collection of its own with a role that runs after the core roles and the
 core version it needs in its `galaxy.yml`. Candidates are the
 [Possible features](#possible-features) (an API key for unattended runs,
-unattended starts, private repositories) and
+unattended starts) and
 [gVisor](#gvisor-the-experimental-extension). No extension exists yet.
+[Repository tokens](#repository-tokens) were one of them, and are planned
+in the core instead ([Decisions](#decisions) 18).
 
 They are called *extensions*, not plugins: in Ansible, "plugin" already
 means the Python kind (filters, lookups, modules).
@@ -940,58 +1084,6 @@ stays within the limits and the allowlist, and is stopped by its time
 limit when it overruns; plus a decision that replaces or revises
 Decision 6.
 
-### Private repositories
-
-Projects are cloned inside the container over HTTPS through Squid
-([Decisions](#decisions) 10), which works for public repositories. A
-private one needs a credential in the sandbox, and none is set up.
-
-**What exists.** The image has `git`; `.github.com` and
-`.githubusercontent.com` are on the allowlist. The intended shape is a
-scoped token through the proxy, never an SSH key, and `agent` holds no git
-credentials of its own.
-
-**What it would buy.** Agents working on the repositories that matter,
-including pushing a branch, without a key or an account-wide credential in
-the sandbox.
-
-**What is open:**
-
-- **Which host.** A GitHub fine-grained token can be limited to single
-  repositories, with read or read-and-write contents and an expiry. A
-  GitLab project access token is the equivalent there, and a self-hosted
-  GitLab would have to be allowlisted.
-- **How git gets the token.** A credential helper in the image that
-  answers git, so the token never lands in `/work/.git/config` or in a
-  remote URL.
-- **Per project or shared.** One token for every project reaches every
-  repository it covers from every session; a secret per project, chosen by
-  the launcher from the project name, keeps a session to its own
-  repository.
-- **Which sessions get it.** The same question as for the API key: every
-  session, only interactive ones, or only `--auto`.
-- **What an agent may do with it.** Read only, or push to branches. Branch
-  protection on the remote is what keeps an agent off `main`, not the
-  sandbox.
-- **Exfiltration.** A token that can push can also push the project's
-  content anywhere the token reaches. And the token cannot be kept from
-  commands: an environment variable reaches every command
-  ([Known unknowns](#known-unknowns) 3), and git itself runs as one, so a
-  file under the credentials deny would keep it from git too. Short of
-  running git outside the sandbox (`excludedCommands`, the weaker option),
-  the token's scope (one repository, an expiry, no admin rights) is the
-  limit, not its secrecy. This is the third case of the
-  [rule for credential extensions](#extensions-and-the-security-boundary).
-- **Where the token comes from.** A manual `podman secret create`, or a
-  role task from an Ansible Vault variable; and who rotates it before it
-  expires.
-
-**Done would mean:** a private repository cloned, changed and pushed to a
-branch from a session, with the token absent from `/work`, from the
-transcript and from `git config`, readable by no other project's session,
-and refused a push to a protected branch; plus a decision recording the
-choices above.
-
 ---
 
 ## Why not bare metal
@@ -1269,3 +1361,15 @@ decision that is revised keeps its number and says so.
     baseline (`state/<vm>-snapshot.yml`) is written to
     `snapshot_state_dir`, never into the installed collection, where a
     reinstall would lose it.
+18. **Repository tokens are core, come from the controller's git, and
+    have two lifetimes.** *Planned* ([Repository tokens](#repository-tokens)).
+    Core rather than an extension: the extension points are not built,
+    and working on a repository, which pushing needs even for a public
+    one, is what the sandbox is for. A candidate to move into an extension
+    once the points exist. The source is `git credential fill` on the
+    controller, not a command for a particular password store, so any
+    credential helper answers and the collection knows none. A `session`
+    token is kept on tmpfs and deleted by the launcher when the session
+    ends; a `permanent` one on disk. Neither is minted or revoked at the
+    remote: the token's own scope and expiry are the limit, since git, a
+    command, has to read it.

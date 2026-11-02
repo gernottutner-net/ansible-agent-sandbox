@@ -17,9 +17,14 @@ level.
 
 #### Changed
 
+- `docs/design.md`: "Private repositories" is now "Repository tokens", since pushing needs a token for a public repository too. It moves out of "Possible features" into a section of its own, marked planned, with the design as decided: two lifetimes, `session` (on tmpfs, deleted by the launcher when the session ends, never in a snapshot) and `permanent` (on disk); tokens fetched on the controller with `git credential fill`, so any credential helper answers and the collection knows no password store, run from `/` so that no repository's own credential settings apply; a playbook `git_token` that writes and removes them, apart from the `sandbox` run; a host off the allowlist refused; a credential helper in the image that never stores, read-only mounts per lifetime, a Read and Edit deny on them, and the launcher naming each token's host and lifetime; what it does not protect, and what done would mean. "Core and extensions" and "Secrets, honestly" point to it.
 - README, "Check the sandbox": the roles' own checks run from the VM, not from inside a container; when to run the smoke tests (once after the first `sandbox` run, before the baseline snapshot, and after changing the allowlist or the policy), and that nothing enforces them.
 - README, "Install": no existing Ansible project is needed; where `ansible-galaxy` puts the collection (`~/.ansible/collections/ansible_collections/tutner/agent_sandbox/` by default), `-p` with `collections_path`, `ansible-galaxy collection list` to find it, and `requirements.yml` for a project you already have. "Configure": the collection brings the playbooks, the contents of `examples/`, copied into it, are the whole working directory, and every command runs from inside it, since Ansible reads `ansible.cfg` from the current directory.
 - `docs/virtualbox.md`, "VirtualBox 7.0 specifics": the 6.x and 7.0 names of the `modifyvm` flags as a table; the old key names `showvminfo` prints and why they matter; why `Debian_64` is only a GUI label, with a command to check the guest's release; why the VMDK subformat is pinned; new item 8, `qemu-img` 6.2 on an Ubuntu 22.04 host being enough. "Snapshots": long chains slow disk I/O and take space, which is why `take` prunes. All taken from the private repository's README, where they were documented before.
+
+#### Decisions
+
+- `docs/design.md`, Decision 18: repository tokens are core, not an extension, while the extension points are not built; they come from the controller's git through `git credential fill`; they have a `session` and a `permanent` lifetime; neither is minted or revoked at the remote, so the token's scope and expiry are the limit.
 
 ### 2026-10-31
 
