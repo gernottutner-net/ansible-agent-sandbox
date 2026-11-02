@@ -145,10 +145,14 @@ takes the tags `podman`, `egress` and `agentbox`; a second run reports
 
 ## Check the sandbox
 
-The roles check their own work on every run. These smoke tests check it
-once more from where a session sits, inside a container. Run them once
-after the first `sandbox` run, as `agent` on the VM (`ssh` in as
-`ansible`, then `sudo -iu agent`). Containers get the proxy from Podman's
+The roles check their own work on every run, but from the VM, not from
+inside a container. These smoke tests check it from where a session sits.
+Run them once after the first `sandbox` run, before the baseline snapshot,
+and again after changing the allowlist or the policy. Nothing enforces
+this; it's how you see the sandbox deny before you trust it.
+
+Run them as `agent` on the VM (`ssh` in as `ansible`, then
+`sudo -iu agent`). Containers get the proxy from Podman's
 `containers.conf`, as `$https_proxy`.
 
 ```bash

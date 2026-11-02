@@ -17,6 +17,7 @@ level.
 
 #### Changed
 
+- README, "Check the sandbox": the roles' own checks run from the VM, not from inside a container; when to run the smoke tests (once after the first `sandbox` run, before the baseline snapshot, and after changing the allowlist or the policy), and that nothing enforces them.
 - README, "Install": no existing Ansible project is needed; where `ansible-galaxy` puts the collection (`~/.ansible/collections/ansible_collections/tutner/agent_sandbox/` by default), `-p` with `collections_path`, `ansible-galaxy collection list` to find it, and `requirements.yml` for a project you already have. "Configure": the collection brings the playbooks, the contents of `examples/`, copied into it, are the whole working directory, and every command runs from inside it, since Ansible reads `ansible.cfg` from the current directory.
 - `docs/virtualbox.md`, "VirtualBox 7.0 specifics": the 6.x and 7.0 names of the `modifyvm` flags as a table; the old key names `showvminfo` prints and why they matter; why `Debian_64` is only a GUI label, with a command to check the guest's release; why the VMDK subformat is pinned; new item 8, `qemu-img` 6.2 on an Ubuntu 22.04 host being enough. "Snapshots": long chains slow disk I/O and take space, which is why `take` prunes. All taken from the private repository's README, where they were documented before.
 
