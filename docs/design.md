@@ -44,7 +44,8 @@ named are the ones tested: Debian 13, Podman 5.4.2, Squid 6.13, kernel
   - [The playbook `git_token`](#the-playbook-git_token)
   - [In the session](#in-the-session)
   - [What it does not protect](#what-it-does-not-protect)
-  - [Done would mean](#done-would-mean)
+  - [What was tested](#what-was-tested)
+  - [Findings on the VM](#findings-on-the-vm)
 - [Core and extensions](#core-and-extensions)
 - [Extension points](#extension-points)
 - [Extensions and the security boundary](#extensions-and-the-security-boundary)
@@ -356,15 +357,18 @@ open; without one, both are rejected.
   `agentbox_claude_code_version`, with `DISABLE_AUTOUPDATER=1` so updates
   only ever come from a rebuild. A non-root user `dev` with uid and gid
   1000, both pinned because the launcher's user mapping names them;
-  `WORKDIR /work`, `CMD ["claude"]`. The build gets the proxy from
+  `git-credential-agentbox`, the credential helper for
+  [repository tokens](#repository-tokens), registered for every host in
+  `/etc/gitconfig`; `WORKDIR /work`, `CMD ["claude"]`. The build gets the proxy from
   `containers.conf` and does not bake it into the image (tested), so the
   Containerfile carries no proxy settings.
 - **One tag, one build.** Built as `agent`, tagged
   `localhost/agentbox:<sandbox_image_tag>`, only when that tag does not
   exist yet. Tagged, not `latest`, so a rebuild is a visible change. The
-  image carries a label with the SHA-256 of the rendered Containerfile; if
-  the tag exists but was built from a different Containerfile, the role
-  fails and asks for a tag bump instead of rebuilding the tag. Updating
+  image carries a label, `agentbox.build-sha256`, with the SHA-256 of the
+  rendered Containerfile and the files it copies; if the tag exists but was
+  built from a different recipe, the role fails and asks for a tag bump
+  instead of rebuilding the tag. Updating
   Claude Code therefore means bumping `agentbox_claude_code_version` and
   `sandbox_image_tag` together. Old tags stay in `agent`'s storage, so
   going back is setting the tag back.
@@ -385,7 +389,9 @@ open; without one, both are rejected.
   layer). A network allowlist generated from `egress_allowlist`, with
   `strictAllowlist` and `allowManagedDomainsOnly`. A credentials deny on
   the login file. Deny rules that keep Claude's Read and Edit tools off the
-  login, Claude Code's own `settings.json` and the project's `.claude/`.
+  login, Claude Code's own `settings.json` and the project's `.claude/`;
+  an Edit deny, not a Read deny, on `/run/agentbox/`, where the repository
+  tokens are mounted ([Findings on the VM](#findings-on-the-vm) 3).
   None of it is in the image, so policy and allowlist changes need no
   rebuild. The reasoning is in [Decisions](#decisions) 13 and 14.
 - **The launcher**, `/usr/local/bin/agentbox`, described under
@@ -395,7 +401,8 @@ open; without one, both are rejected.
 - Ends by inspecting the image and running it once as `agent` (no mount,
   no secret): its `User` is `dev`, no `*_proxy` variable is in its `Env`,
   and under the launcher's user mapping `claude --version` reports the
-  pinned version and `id -u` is 1000.
+  pinned version, `id -u` is 1000, and git's system-wide credential helper
+  is `agentbox`.
 
 ---
 
@@ -432,7 +439,7 @@ egress_allowlist:
 sandbox_memory: 2g
 sandbox_cpus: 1.5
 sandbox_pids_limit: 256
-sandbox_image_tag: "0.1.0"
+sandbox_image_tag: "0.2.0"
 agentbox_claude_code_version: "2.1.284"   # bumped together with the tag
 agentbox_claude_env:                      # --env for every session
   DISABLE_ERROR_REPORTING: "1"
@@ -494,15 +501,19 @@ podman run --rm --interactive [--tty] \
   --env DISABLE_ERROR_REPORTING=1 \
   --env DISABLE_TELEMETRY=1 \
   [--env=ENABLE_CLAUDEAI_MCP_SERVERS=false] \
+  [--volume=/home/agent/.agentbox-tokens/$project:/run/agentbox/git/permanent:ro] \
+  [--volume=/run/user/<uid>/agentbox/tokens/session/.run-$project-<pid>:/run/agentbox/git/session:ro] \
   [--secret=anthropic_api_key,type=env,target=ANTHROPIC_API_KEY] \
-  localhost/agentbox:0.1.0 "$@"
+  localhost/agentbox:0.2.0 "$@"
 ```
 
 The values are rendered from the policy when the role runs. The command
 defaults to the image's `claude`; `agentbox <project> bash` gives a shell,
 for example to clone the project first. `--tty` is added only when stdin
 and stdout are terminals. The name makes a second session on the same
-project fail instead of sharing its directories.
+project fail instead of sharing its directories; the launcher checks for
+it before anything else, so that a second start does not take the running
+session's repository token.
 
 **Autonomous mode.** `agentbox --auto <project>` runs
 `claude --dangerously-skip-permissions`, with any further arguments passed
@@ -524,6 +535,21 @@ transcripts survive `--rm`. One state directory per project, not one for
 all: a login per project is the price of no session seeing another
 project's transcripts. The state lives outside `/work`, so credentials
 never end up in a project's repository.
+
+**Repository tokens** are mounted read-only if the project has any: a
+`permanent` token directory as it is, a `session` one renamed for this run
+first and deleted when the container exits. Details under
+[Repository tokens](#repository-tokens).
+
+**A lost terminal ends the session.** On `SIGHUP`, `SIGINT` or `SIGTERM`
+the launcher stops the container (`podman stop`, ten seconds before
+`SIGKILL`). A dropped SSH connection kills `podman run`, the client, but
+not the container, which `conmon` keeps running, detached and holding the
+project's name, until stopped by hand (seen 2026-11-02, and so already
+true of `v0.1.0`). That, and deleting a session token, is why the launcher
+runs `podman run` and waits for it rather than `exec`ing it. A run meant to
+outlive the connection goes under `tmux`, or `nohup`, which ignores the
+hangup.
 
 **The API key** is optional. If `agent` has a Podman secret
 `anthropic_api_key` (`agentbox_api_key_secret`), the launcher passes it as
@@ -620,7 +646,7 @@ push, that is a scoped token through the proxy, not a key (see
 
 ## Repository tokens
 
-*Planned: designed, not built.* Projects are cloned inside the container
+Projects are cloned inside the container
 over HTTPS through Squid ([Decisions](#decisions) 10). That works without
 a credential only for reading a public repository. Cloning a private one,
 or pushing to any repository, public or private, needs a token in the
@@ -633,7 +659,7 @@ Every token belongs to one project and has one of two lifetimes:
 
 | | `session` | `permanent` |
 |---|---|---|
-| Kept on the VM in | `$XDG_RUNTIME_DIR/agentbox/tokens/session/<project>/`, on tmpfs | `~agent/.agentbox-tokens/<project>/`, mode `0700`, on disk |
+| Kept on the VM in | `/run/user/<uid>/agentbox/tokens/session/<project>/`, on tmpfs | `~agent/.agentbox-tokens/<project>/`, mode `0700`, on disk |
 | Lasts | until the project's next session ends: the launcher deletes it then, and a reboot clears it before | until removed |
 | In snapshots | never: `take` shuts the guest down, which empties tmpfs | in every snapshot taken while it is there |
 
@@ -670,8 +696,10 @@ How the token is fetched:
 
 - `git credential fill` runs on the controller with a request of
   `protocol`, `host` and `path` from `url`, the `git_config` entries as
-  `-c` options, and `GIT_TERMINAL_PROMPT=0`, so a helper that does not
-  answer fails the run rather than waiting for a password.
+  `-c` options, `GIT_TERMINAL_PROMPT=0` and `GIT_ASKPASS=false`, so a
+  helper that does not answer fails the run, with git's and the helper's
+  messages, rather than waiting for a password at a prompt or in a
+  desktop dialog.
 - It runs with `/` as its working directory. From inside a repository,
   that repository's own credential settings would apply, and could answer
   with another project's token.
@@ -703,11 +731,13 @@ meant for.
 
 ### In the session
 
-- **The launcher.** If the project has a `session` token directory, the
-  launcher renames it to one for this run, mounts it read-only at
-  `/run/agentbox/git/session/`, and deletes it when the container exits,
-  also on `SIGHUP`, `SIGINT` and `SIGTERM`. So it no longer `exec`s
-  `podman run` but waits for it. A token written while a session runs
+- **The launcher.** It first refuses to start if the project's session is
+  already running, which would otherwise lose its `session` token to a
+  start that `podman` then refuses. If the project has a `session` token
+  directory, the launcher renames it to one for this run, mounts it read-only at
+  `/run/agentbox/git/session/`, and deletes it when the container exits;
+  on `SIGHUP`, `SIGINT` and `SIGTERM` it stops the container first
+  ([the launcher contract](#the-launcher-contract)). A token written while a session runs
   waits for the next one. A `permanent` token directory is mounted
   read-only at `/run/agentbox/git/permanent/`. In keeping with the
   visibility rule ([Extensions and the security boundary](#extensions-and-the-security-boundary)),
@@ -719,14 +749,15 @@ meant for.
   `erase` do nothing, which matters because git calls `store` after every
   successful authentication. The token therefore never lands in
   `/work/.git/config`, in a remote URL or in a `~/.git-credentials`.
-- **The managed settings** deny Claude's Read and Edit tools
-  `/run/agentbox/**`, so the token does not reach a transcript through a
-  casual look at the file.
+- **The managed settings** deny Claude's Edit tool `/run/agentbox/**`,
+  and nothing more: a Read deny there would hide the tokens from git as
+  well ([Findings on the VM](#findings-on-the-vm)). Claude's Read tool can
+  read a token, so a careless look puts it in the transcript.
 
 ### What it does not protect
 
 git is a command, so the token is readable by every command Claude runs,
-whatever the route: a credentials deny would keep it from git too, and
+and by Claude's Read tool, whatever the route: a credentials deny would keep it from git too, and
 running git outside the inner sandbox (`excludedCommands`) would run its
 hooks and aliases outside it as well. This is the third case of the
 [rule for credential extensions](#extensions-and-the-security-boundary).
@@ -742,15 +773,75 @@ A token that can push can push the project's content anywhere it
 reaches, and a token that can read reaches every repository in its scope.
 The README says so where it shows the feature.
 
-### Done would mean
+### What was tested
 
-A private repository cloned, changed and pushed to a branch from a
-session, with each lifetime; the token absent from `/work`, from
-`git config` and from the transcript; the `session` token gone from the
-VM after the session, also after the SSH connection dropped; no other
-project's session given it; a push to a protected branch refused; a host
-off the allowlist refused by the playbook. Then it moves into the release
-tests.
+On 2026-11-02, first on the controller, without a VM and with tokens from
+a stand-in credential helper:
+
+- **The playbook**, against `localhost` as the sandbox user: both
+  lifetimes written to the right place, files `0600` in directories
+  `0700`; a second run `changed=0`; a changed token replaced; a switch of
+  lifetime and a dropped host leaving no stale file; `remove` leaving
+  nothing; a host off the allowlist, a helper that does not answer, an
+  unknown project and a bad project name each refused with a message. The
+  fetched token appeared in neither a `-vvv` log nor a `--check --diff`
+  one.
+- **The launcher**, rendered and run against a stand-in `podman`: both
+  directories mounted read-only and named on stderr; the `session` token
+  gone after a normal end, after `podman` failed (its exit code kept) and
+  after `SIGHUP`; a start while the project's session runs refused, with
+  the token kept; a token written during a session kept for the next.
+- **The helper**, outside the image: `session` before `permanent`;
+  nothing for plain HTTP, an unknown host or a host name with a path in
+  it; `store` a no-op; answered through `git credential fill`.
+
+Then on the VM, image `0.2.0`, with tokens from a `pass`-backed credential
+helper on the controller: a self-hosted GitLab (project access token,
+Maintainer) and a private GitHub repository kept for tests (fine-grained
+token, contents read and write):
+
+- **The playbook**: refused the GitLab host until it was on the
+  allowlist; then wrote both lifetimes, and `remove` left nothing.
+- **A `session` token, in a shell** (`agentbox <project> bash`), on both
+  hosts: clone, commit, push of a branch; no token in `.git/config`, in
+  `git config --list` or anywhere in `/work` and the home directory, no
+  `~/.git-credentials`, the only credential setting `credential.helper`
+  from `/etc/gitconfig`; a second start in the project refused while the
+  session ran; the token gone after `exit`, and gone, with the container,
+  four seconds after the SSH client was killed.
+- **A `permanent` token, with Claude** (`agentbox --auto <project> -p`):
+  clone, commit and push of a branch by Claude, through its sandbox; the
+  token in neither the transcript nor the state directory.
+
+Not tested: a push to a protected branch, which tests the remote, not the
+collection; `SIGINT` and `SIGTERM` on the VM, only against the stand-in;
+that another project's session is not given the token, which follows from
+mounting the one project's directories, and was not tried separately.
+
+### Findings on the VM
+
+1. **The playbook tried `sudo` on the controller.** An inventory that sets
+   `ansible_become: true` in `group_vars/all.yml`, as the example does,
+   gives it to the implicit `localhost` too, and a variable outranks the
+   task's `become: false`: the fetch failed with `MODULE FAILURE`. Fixed
+   with `ansible_become: false` as a task variable, and the module's own
+   error is now part of the message.
+2. **A dropped SSH connection left the container running**, holding the
+   project's name. Fixed in the launcher
+   ([the launcher contract](#the-launcher-contract)).
+3. **A Read deny hides a path from the sandboxed commands.** With
+   `Read(//run/agentbox/**)` in the managed settings, Claude Code's
+   sandbox put a `--tmpfs /run/agentbox` into every command's `bwrap`
+   line, and git inside Claude found no token, while git in a plain shell
+   did. Claude Code derives the commands' filesystem denies from the Read
+   deny rules; that is also how the login is kept from them. So the rule
+   went, and the Read tool can read the token.
+4. **`git clone <url> .` fails inside Claude's sandbox** on an empty
+   `/work`: the sandbox places read-only `/dev/null` stand-ins for
+   `.gitconfig`, `.bashrc`, `.gitmodules` and others there, so the
+   directory is not empty. Claude Code's behaviour, not the collection's;
+   cloning first in `agentbox <project> bash`, as the README says, or into
+   a subdirectory, works.
 
 ---
 
@@ -766,8 +857,8 @@ core version it needs in its `galaxy.yml`. Candidates are the
 [Possible features](#possible-features) (an API key for unattended runs,
 unattended starts) and
 [gVisor](#gvisor-the-experimental-extension). No extension exists yet.
-[Repository tokens](#repository-tokens) were one of them, and are planned
-in the core instead ([Decisions](#decisions) 18).
+[Repository tokens](#repository-tokens) were one of them, and are in the
+core instead ([Decisions](#decisions) 18).
 
 They are called *extensions*, not plugins: in Ansible, "plugin" already
 means the Python kind (filters, lookups, modules).
@@ -1362,7 +1453,7 @@ decision that is revised keeps its number and says so.
     `snapshot_state_dir`, never into the installed collection, where a
     reinstall would lose it.
 18. **Repository tokens are core, come from the controller's git, and
-    have two lifetimes.** *Planned* ([Repository tokens](#repository-tokens)).
+    have two lifetimes** ([Repository tokens](#repository-tokens)).
     Core rather than an extension: the extension points are not built,
     and working on a repository, which pushing needs even for a public
     one, is what the sandbox is for. A candidate to move into an extension

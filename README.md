@@ -35,6 +35,7 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
   - [Autonomous mode](#autonomous-mode)
   - [Logging in](#logging-in)
   - [Getting a project in](#getting-a-project-in)
+  - [Repository tokens](#repository-tokens)
   - [Claude Code's own sandbox](#claude-codes-own-sandbox)
 - [Egress](#egress)
 - [Updating Claude Code](#updating-claude-code)
@@ -55,7 +56,7 @@ guest over SSH, in this order, from the playbook `sandbox`.
 | `virtualbox_vm` | The VM from Debian's checksum-verified cloud image: a NAT and a host-only NIC with pinned MACs, a cloud-init seed with an `ansible` account and your key, headless start; snapshots with one rolling slot plus a baseline; teardown. Details in [docs/virtualbox.md](docs/virtualbox.md). |
 | `podman` | Podman with crun and pasta; a sudo-less user `agent` with a pinned subuid range, lingering, and delegated cgroup v2 limits. Asserts no sudo rights and no overlapping ranges. |
 | `egress_proxy` | Squid with a default-deny allowlist, and an nftables rule on `agent`'s uid that makes Squid the only way out. Probes an allowed host, a denied one and a bypass on every run. |
-| `agentbox` | The image (Debian, Node, a pinned Claude Code), Claude Code's managed settings, and the launcher `/usr/local/bin/agentbox`, the only supported way to start a session. |
+| `agentbox` | The image (Debian, Node, a pinned Claude Code), Claude Code's managed settings, and the launcher `/usr/local/bin/agentbox`, the only supported way to start a session. With the playbook `git_token`, it also hands a project its [repository tokens](#repository-tokens). |
 
 Every role checks what it set up before it finishes, so a run that passes
 has been observed denying, not only configured to. The layers they build,
@@ -232,7 +233,9 @@ agentbox <project> bash         # a shell instead, e.g. to clone first
   running `npm install`, peaked at about 310 MB each of their 2 GiB, on a
   6 GB VM.
 - Everything outside `/work` and Claude Code's state is gone when the
-  session ends (`--rm`).
+  session ends (`--rm`). A lost terminal ends the session too: on a
+  dropped SSH connection the launcher stops the container. For a run that
+  should outlive the connection, start it under `tmux` or `nohup`.
 - The run policy is rendered into the launcher, not read from the
   environment or the command line: `--cap-drop=ALL`,
   `no-new-privileges`, the memory, CPU and process limits, no swap, the
@@ -278,7 +281,8 @@ read -rs t && printf %s "$t" | podman secret create anthropic_api_key - && unset
 ### Getting a project in
 
 Clone inside the session, over HTTPS through the proxy. Only allowlisted
-hosts work, and there are no SSH keys in the sandbox.
+hosts work, and there are no SSH keys in the sandbox. A private repository,
+and a push to any repository, need a [repository token](#repository-tokens).
 
 ```bash
 agentbox myproj bash
@@ -286,6 +290,71 @@ git clone https://github.com/<owner>/<repo>.git .      # inside, in /work
 exit
 agentbox myproj
 ```
+
+### Repository tokens
+
+A token lets git in a session clone a private repository, and push to any
+repository. A project gets its own tokens, one per host, and each has a
+lifetime:
+
+- `session`: for the project's next session only. The launcher deletes it
+  from the VM when that session ends. It is kept on tmpfs, so it never
+  reaches the VM's disk or a snapshot, and a reboot clears it too.
+- `permanent`: for every session of the project, until removed. Kept on
+  the VM's disk, in `~agent/.agentbox-tokens/<project>/`, and so in every
+  snapshot taken while it is there.
+
+Either way, the token stays valid at GitHub or GitLab until it expires or
+you revoke it there. Create it as narrow as the work allows: a GitHub
+fine-grained token for the one repository, with *Contents* read, or read
+and write to push, and an expiry; on GitLab, a project access token with
+`read_repository`, or `write_repository` to push, and an expiry. Protect
+the branches an agent must not push to on the remote; the sandbox does not
+know about branches.
+
+The tokens come from the controller's own git: the playbook asks
+`git credential fill`, so whatever credential helper you use there
+answers, whether it reads a password store, a keyring or `gh auth`. Your
+inventory names where each token is, never the token:
+
+```yaml
+# host_vars/sandbox-vm.yml
+agentbox_git_tokens:
+  myproj:
+    - url: https://github.com/<owner>/<repo>
+      lifetime: session                 # or: permanent
+      git_config:                       # optional: -c options for git credential fill,
+        credential.<setting>: <value>   #   e.g. the one your helper picks the token by
+```
+
+`git credential fill` runs from `/`, so no repository's own settings
+apply: a helper that picks the token by a per-repository setting gets it
+from `git_config`. Check first that your helper answers, for example
+`printf 'protocol=https\nhost=github.com\n\n' | git credential fill`,
+from outside any repository; it prints the token, so not where others can
+see it. The host must be on `egress_allowlist`; a self-hosted GitLab is
+added there first.
+
+Write the project's tokens to the VM, a `session` token just before the
+session it is for, and remove them again:
+
+```bash
+ansible-playbook tutner.agent_sandbox.git_token -e project=myproj
+ansible-playbook tutner.agent_sandbox.git_token -e project=myproj -e git_token_action=remove
+```
+
+Writing replaces what the project had, and is also how a token is rotated.
+The `sandbox` playbook never touches tokens. In the session, git finds
+them on its own, through a credential helper in the image, so the token
+never ends up in `.git/config` or a remote URL; the launcher names each
+token's host and lifetime as the session starts.
+
+A token is readable by every command Claude runs: git is one of them, and
+has to read it. Claude's Read tool can read it too: a deny rule for the
+tool would hide it from git as well. So the token's scope is what limits
+a misled agent, not its secrecy: a token
+that can push can push the project anywhere it reaches. Why, and what was
+weighed, is in [docs/design.md, "Repository tokens"](docs/design.md#repository-tokens).
 
 ### Claude Code's own sandbox
 
@@ -345,7 +414,7 @@ The image holds a pinned Claude Code and never updates itself. Change both
 values and apply with `--tags agentbox`:
 
 ```yaml
-sandbox_image_tag: "0.2.0"                 # a new tag, never reuse one
+sandbox_image_tag: "0.3.0"                 # a new tag, never reuse one
 agentbox_claude_code_version: "2.x.y"
 ```
 
@@ -374,6 +443,9 @@ from the container lands in a sudo-less account. It does not:
   process's environment, nor the login, which Claude Code's sandbox denies
   them as a file. So a credential never goes into the environment or onto a
   command line.
+- **keep a repository token from commands.** git is a command, so every
+  command Claude runs can read the project's token; its scope is the
+  limit ([Repository tokens](#repository-tokens)).
 - **prevent leaks to allowed hosts.** The allowlist says which
   organisations the agent may talk to, not what it may say: a gist on
   github.com is as reachable as the rest of github.com.

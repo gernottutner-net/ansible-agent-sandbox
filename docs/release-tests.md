@@ -58,10 +58,11 @@ not a workaround. Every step is a command from the README or from
 | 2 | `sandbox`, first run | the image builds; the roles' own checks pass |
 | 3 | `sandbox`, second run | `changed=0` |
 | 4 | [Check the sandbox](../README.md#check-the-sandbox), as `agent` | every test gives the result its comment expects; `~/projects` and `~/.agentbox` are left empty |
-| 5 | `snapshot` take `base` | the state file is next to the inventory, and the installed collection holds none |
-| 6 | take `pre-session`, then restore `pre-session`, then restore `base`, with a marker file written before and one after `pre-session` | `ssh` right after each connects, with no `wait` between; after `pre-session` only the earlier marker is there, after `base` neither |
-| 7 | `sandbox` afterwards | `changed=0` |
-| 8 | `destroy --limit sandbox-vm -e destroy_confirm=yes`, on the running VM with its two snapshots | no VM, no registered disk or DVD, no machine folder, no build artefacts; the base image cache stays |
+| 5 | [Repository tokens](../README.md#repository-tokens), for a private repository of your own kept for tests: a `session` token for one project, in `agentbox <project> bash`; a `permanent` one for another, through Claude with `agentbox --auto <project> -p …` | each clones, commits and pushes a branch; the token is in neither `/work`, nor `git config`, nor the transcript; the `session` token is gone from `/run/user/<uid>/agentbox/` after the session, also after the SSH connection was cut; `remove` leaves nothing; `~/projects`, `~/.agentbox` and `~/.agentbox-tokens` are left empty before the baseline |
+| 6 | `snapshot` take `base` | the state file is next to the inventory, and the installed collection holds none |
+| 7 | take `pre-session`, then restore `pre-session`, then restore `base`, with a marker file written before and one after `pre-session` | `ssh` right after each connects, with no `wait` between; after `pre-session` only the earlier marker is there, after `base` neither |
+| 8 | `sandbox` afterwards | `changed=0` |
+| 9 | `destroy --limit sandbox-vm -e destroy_confirm=yes`, on the running VM with its two snapshots | no VM, no registered disk or DVD, no machine folder, no build artefacts; the base image cache stays |
 
 Every playbook passes `--syntax-check` first. A release that changes a
 role an existing install runs also gets the
@@ -263,3 +264,6 @@ Nothing found.
   README's [Open questions](../README.md#open-questions).
 - The upgrade test from one release of the collection to the next: there
   is no earlier release.
+- Repository tokens (step 5) on a new VM: built after `v0.1.0`, and tested
+  on an existing one, by hand; see
+  [docs/design.md, "What was tested"](design.md#what-was-tested).

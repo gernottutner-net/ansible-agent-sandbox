@@ -1,0 +1,18 @@
+---
+# The sandbox user and the paths derived from it, shared by main.yml and
+# git_token.yml so the launcher and the git_token playbook agree on them.
+
+- name: Look up the sandbox user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ sandbox_user }}"
+  check_mode: false
+
+- name: Record the sandbox user's uid and directories
+  ansible.builtin.set_fact:
+    _sandbox_uid: "{{ getent_passwd[sandbox_user][1] }}"
+    _agentbox_projects_dir: "{{ getent_passwd[sandbox_user][4] }}/projects"
+    _agentbox_state_dir: "{{ getent_passwd[sandbox_user][4] }}/.agentbox"
+    _agentbox_token_dir: "{{ getent_passwd[sandbox_user][4] }}/{{ agentbox_token_dir_name }}"
+    # tmpfs: never on disk, never in a snapshot, cleared by a reboot.
+    _agentbox_session_token_dir: "/run/user/{{ getent_passwd[sandbox_user][1] }}/agentbox/tokens/session"

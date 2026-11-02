@@ -18,6 +18,10 @@
   - The login is kept away from commands (credentials deny) and from Claude's
     Read and Edit tools, and Claude may not edit its own settings or the
     project's .claude directory.
+  - Repository tokens under /run/agentbox: Edit only. A Read deny would also
+    become a filesystem deny for the sandboxed commands, git among them,
+    which then sees an empty tmpfs in place of the tokens (seen 2026-11-02),
+    so Claude's Read tool can read them, as every command can.
 #}
 {% set cfg = agentbox_claude_config_dir %}
 {{ {
@@ -47,6 +51,7 @@
       'Edit(/' ~ cfg ~ '/.credentials.json)',
       'Edit(/' ~ cfg ~ '/settings.json)',
       'Edit(//work/.claude/**)',
+      'Edit(//run/agentbox/**)',
     ],
   },
 } | to_nice_json(indent=2) }}

@@ -15,7 +15,9 @@
 # project's repository; its managed settings come read-only from
 # {{ agentbox_managed_settings_path }}. The run policy is fixed here, not taken
 # from the environment or the command line, so no session can forget a limit.
-# See README.md, "The launcher".
+# Repository tokens the git_token playbook wrote for <project> are mounted
+# read-only; a session token is deleted when the session ends.
+# See README.md, "The launcher", and docs/design.md, "Repository tokens".
 set -eu
 
 die() {
@@ -73,10 +75,61 @@ else
     secret=
 fi
 
+# Checked here, although podman refuses the name too: by then a session
+# token would already be taken from the session that is running.
+if podman container exists "agentbox-$project"; then
+    die "a session in $project is running already (container agentbox-$project)"
+fi
+
 workdir={{ _agentbox_projects_dir | quote }}/$project
 statedir={{ _agentbox_state_dir | quote }}/$project
 mkdir -p "$workdir"
 mkdir -p -m 0700 "$statedir"
+
+# Repository tokens, one file per host, answered by git-credential-agentbox in
+# the image. A permanent token stays; a session token is taken for this run,
+# renamed so that one written meanwhile waits for the next session, and
+# deleted when the container exits, on a signal too. tmpfs, so a reboot
+# clears it as well. Named here by host and lifetime, never by value.
+permdir={{ _agentbox_token_dir | quote }}/$project
+sessdir={{ _agentbox_session_token_dir | quote }}/$project
+rundir=
+
+# A lost terminal ends the session. SIGHUP from a dropped SSH connection
+# kills podman's client, but not the container, which conmon keeps running
+# (seen 2026-11-02): it would sit there, holding the project's name, until
+# stopped by hand. So a signal stops it; the trap runs once podman's client
+# has returned. The session token goes on exit, whatever the cause. Output to
+# /dev/null and every command allowed to fail: the terminal may be gone, and
+# under set -e a failed write would end the trap before the stop.
+cleanup() {
+    if [ -n "$rundir" ]; then rm -rf "$rundir"; fi
+}
+on_signal() {
+    podman stop --ignore --time 10 "agentbox-$project" >/dev/null 2>&1 || :
+    exit "$1"
+}
+trap cleanup EXIT
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+
+permanent_tokens=
+session_tokens=
+if [ -d "$permdir" ]; then
+    permanent_tokens=--volume=$permdir:/run/agentbox/git/permanent:ro
+    for f in "$permdir"/*; do
+        if [ -f "$f" ]; then echo "agentbox: repository token for ${f##*/} (permanent)" >&2; fi
+    done
+fi
+if [ -d "$sessdir" ]; then
+    rundir={{ _agentbox_session_token_dir | quote }}/.run-$project-$$
+    mv "$sessdir" "$rundir"
+    session_tokens=--volume=$rundir:/run/agentbox/git/session:ro
+    for f in "$rundir"/*; do
+        if [ -f "$f" ]; then echo "agentbox: repository token for ${f##*/} (session, deleted when it ends)" >&2; fi
+    done
+fi
 
 if [ -t 0 ] && [ -t 1 ]; then
     tty=--tty
@@ -84,7 +137,9 @@ else
     tty=
 fi
 
-exec podman run --rm --interactive ${tty:+"$tty"} \
+# No exec: the launcher waits, to stop the container on a signal and to
+# delete a session token afterwards.
+podman run --rm --interactive ${tty:+"$tty"} \
     --name "agentbox-$project" \
 {# claude does not reap orphans as PID 1; the zombies of its sandboxed
    commands pile up against the pids limit. catatonit takes PID 1 instead. #}
@@ -99,6 +154,8 @@ exec podman run --rm --interactive ${tty:+"$tty"} \
     --volume "$workdir:/work" --workdir /work \
     --volume "$statedir:{{ agentbox_claude_config_dir }}" \
     --volume {{ (agentbox_managed_settings_path ~ ':' ~ agentbox_managed_settings_target ~ ':ro') | quote }} \
+    ${permanent_tokens:+"$permanent_tokens"} \
+    ${session_tokens:+"$session_tokens"} \
     --env CLAUDE_CONFIG_DIR={{ agentbox_claude_config_dir | quote }} \
 {% for name, value in agentbox_claude_env | dictsort %}
     --env {{ (name ~ '=' ~ value) | quote }} \

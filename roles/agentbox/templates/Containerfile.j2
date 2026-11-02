@@ -34,6 +34,12 @@ RUN groupadd --gid {{ agentbox_image_uid }} {{ agentbox_image_user }} \
  && useradd --uid {{ agentbox_image_uid }} --gid {{ agentbox_image_uid }} --create-home --shell /bin/bash {{ agentbox_image_user }} \
  && install -d -o {{ agentbox_image_user }} -g {{ agentbox_image_user }} -m 0755 /work
 
+# The repository tokens' credential helper, for every host. It answers from
+# the files the launcher mounts under /run/agentbox/git/ and never stores
+# anything, so a token never lands in a repository's config or a remote URL.
+COPY --chmod=0755 git-credential-agentbox /usr/local/bin/git-credential-agentbox
+RUN git config --system credential.helper agentbox
+
 USER {{ agentbox_image_user }}
 WORKDIR /work
 CMD ["claude"]

@@ -1,0 +1,21 @@
+---
+# Repository tokens for one project, on every host in the agent_sandbox group.
+#
+#   ansible-playbook tutner.agent_sandbox.git_token -e project=myproj
+#   ansible-playbook tutner.agent_sandbox.git_token -e project=myproj -e git_token_action=remove
+#
+# Fetches the project's tokens from agentbox_git_tokens with the controller's
+# `git credential fill` and writes them to the VM, by lifetime: session ones
+# on tmpfs, deleted when the project's next session ends; permanent ones on
+# disk. Kept apart from the sandbox playbook, so a sandbox run never needs an
+# unlocked password store. See README.md, "Repository tokens".
+
+- name: Repository tokens for one project
+  hosts: agent_sandbox
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Write or remove the project's tokens
+      ansible.builtin.include_role:
+        name: tutner.agent_sandbox.agentbox
+        tasks_from: git_token.yml

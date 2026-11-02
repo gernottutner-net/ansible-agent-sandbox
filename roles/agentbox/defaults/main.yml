@@ -8,7 +8,7 @@ sandbox_user: agent
 
 # The image is tagged, never `latest`: a rebuild is a visible tag bump. The
 # role refuses to rebuild an existing tag from a changed Containerfile.
-sandbox_image_tag: "0.1.0"
+sandbox_image_tag: "0.2.0"
 
 # Run limits, baked into the launcher so no invocation can forget one.
 # --memory-swap is set to the same value, which disables swap.
@@ -75,6 +75,23 @@ egress_allowlist: []
 # Claude Code ranks it above every other settings file, --settings included.
 agentbox_managed_settings_path: /etc/agentbox/managed-settings.json
 agentbox_managed_settings_target: /etc/claude-code/managed-settings.json
+
+# Repository tokens, per project: where the git_token playbook fetches each
+# one on the controller, with `git credential fill`, and how long it stays on
+# the VM. The inventory names where a token is, never what it is. See
+# docs/design.md, "Repository tokens".
+#
+#   agentbox_git_tokens:
+#     myproj:
+#       - url: https://github.com/<owner>/<repo>
+#         lifetime: session            # or: permanent
+#         git_config:                  # optional: -c options for git credential fill
+#           credential.<setting>: <value>
+agentbox_git_tokens: {}
+
+# Permanent tokens: ~<sandbox_user>/<this>/<project>/<host>, on disk. Session
+# tokens are on tmpfs, under /run/user/<uid>/agentbox/tokens/session/.
+agentbox_token_dir_name: .agentbox-tokens
 
 agentbox_build_dir: /etc/agentbox
 agentbox_launcher_path: /usr/local/bin/agentbox

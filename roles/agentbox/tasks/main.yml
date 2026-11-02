@@ -3,21 +3,20 @@
 # sandbox user, through the proxy roles/egress_proxy hands to Podman; the
 # launcher at agentbox_launcher_path is the one place the run policy lives.
 
-- name: Look up the sandbox user
-  ansible.builtin.getent:
-    database: passwd
-    key: "{{ sandbox_user }}"
-  check_mode: false
+# Static, so the role's tags reach the tasks inside.
+- name: Look up the sandbox user and its directories
+  ansible.builtin.import_tasks: paths.yml
 
-- name: Record the sandbox user, the image and its Containerfile hash
+- name: Record the image and its build hash
   ansible.builtin.set_fact:
-    _sandbox_uid: "{{ getent_passwd[sandbox_user][1] }}"
-    _agentbox_projects_dir: "{{ getent_passwd[sandbox_user][4] }}/projects"
-    _agentbox_state_dir: "{{ getent_passwd[sandbox_user][4] }}/.agentbox"
     _agentbox_image: "localhost/agentbox:{{ sandbox_image_tag }}"
-    # Rendered on the controller, so the check below also works under --check,
-    # before the file on the host has changed.
-    _agentbox_containerfile_sha256: "{{ lookup('ansible.builtin.template', 'Containerfile.j2') | hash('sha256') }}"
+    # The rendered Containerfile and the files it copies: everything a build
+    # is made from. Rendered on the controller, so the check below also works
+    # under --check, before the files on the host have changed.
+    _agentbox_build_sha256: >-
+      {{ (lookup('ansible.builtin.template', 'Containerfile.j2')
+          ~ lookup('ansible.builtin.file', 'git-credential-agentbox'))
+         | hash('sha256') }}
 
 # ---- the image -----------------------------------------------------------------
 
@@ -38,6 +37,14 @@
     group: root
     mode: "0644"
 
+- name: Write the credential helper the Containerfile copies
+  ansible.builtin.copy:
+    src: git-credential-agentbox
+    dest: "{{ agentbox_build_dir }}/git-credential-agentbox"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Look for the image as the sandbox user
   ansible.builtin.command: "podman image inspect {{ _agentbox_image }}"
   become_user: "{{ sandbox_user }}"
@@ -48,20 +55,20 @@
   failed_when: false
   check_mode: false
 
-# A tag names one build. Rebuilding it from a different Containerfile would be
+# A tag names one build. Rebuilding it from a different recipe would be
 # the silent change the tag exists to prevent, so a changed recipe needs a new
 # tag instead. Old tags stay in storage: going back is setting the tag back.
-- name: Assert an existing tag was built from this Containerfile
+- name: Assert an existing tag was built from this recipe
   vars:
     _labels: "{{ (_agentbox_existing.stdout | from_json | first).Labels | default({}, true) }}"
   ansible.builtin.assert:
-    that: _labels['agentbox.containerfile-sha256'] | default('') == _agentbox_containerfile_sha256
+    that: _labels['agentbox.build-sha256'] | default('') == _agentbox_build_sha256
     fail_msg: >-
-      {{ _agentbox_image }} exists but was built from a different Containerfile
-      ({{ _labels['agentbox.containerfile-sha256'] | default('no label') }}, now
-      {{ _agentbox_containerfile_sha256 }}). Bump sandbox_image_tag in
+      {{ _agentbox_image }} exists but was built from a different recipe
+      ({{ _labels['agentbox.build-sha256'] | default('no label') }}, now
+      {{ _agentbox_build_sha256 }}). Bump sandbox_image_tag in
       your inventory rather than rebuilding the tag.
-    success_msg: "{{ _agentbox_image }} matches the Containerfile"
+    success_msg: "{{ _agentbox_image }} matches the recipe"
   when: _agentbox_existing.rc == 0
 
 # Pulls the base image if missing; apt, NodeSource and npm all go through Squid.
@@ -72,7 +79,7 @@
       - build
       - --pull=missing
       - --label
-      - "agentbox.containerfile-sha256={{ _agentbox_containerfile_sha256 }}"
+      - "agentbox.build-sha256={{ _agentbox_build_sha256 }}"
       - --tag
       - "{{ _agentbox_image }}"
       - --file
@@ -159,7 +166,7 @@
 
 # Runs the image the way the launcher does, minus the secret and the mount, so
 # it needs neither.
-- name: Ask the image for its Claude Code version and uid
+- name: Ask the image for its Claude Code version, uid and git credential helper
   ansible.builtin.command:
     argv:
       - podman
@@ -172,7 +179,7 @@
       - "{{ _agentbox_image }}"
       - sh
       - -c
-      - 'claude --version && id -u'
+      - 'claude --version && id -u && git config --system --get credential.helper'
   become_user: "{{ sandbox_user }}"
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
@@ -180,14 +187,18 @@
   changed_when: false
   when: not ansible_check_mode
 
-- name: Assert the image has the pinned Claude Code and the expected uid
+- name: Assert the image has the pinned Claude Code, the expected uid and the helper
   ansible.builtin.assert:
     that:
-      - _agentbox_probe.stdout_lines | length == 2
+      - _agentbox_probe.stdout_lines | length == 3
       - agentbox_claude_code_version in _agentbox_probe.stdout_lines[0]
       - _agentbox_probe.stdout_lines[1] == agentbox_image_uid | string
+      - _agentbox_probe.stdout_lines[2] == 'agentbox'
     fail_msg: >-
-      Expected Claude Code {{ agentbox_claude_code_version }} and uid
-      {{ agentbox_image_uid }}, got: {{ _agentbox_probe.stdout_lines }}
-    success_msg: "{{ _agentbox_probe.stdout_lines[0] }}, uid {{ _agentbox_probe.stdout_lines[1] }}"
+      Expected Claude Code {{ agentbox_claude_code_version }}, uid
+      {{ agentbox_image_uid }} and the credential helper agentbox, got:
+      {{ _agentbox_probe.stdout_lines }}
+    success_msg: >-
+      {{ _agentbox_probe.stdout_lines[0] }}, uid {{ _agentbox_probe.stdout_lines[1] }},
+      credential helper {{ _agentbox_probe.stdout_lines[2] }}
   when: _agentbox_probe.stdout is defined

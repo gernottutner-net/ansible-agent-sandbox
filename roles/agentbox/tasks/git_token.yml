@@ -1,0 +1,270 @@
+---
+# Repository tokens for one project, from playbooks/git_token.yml:
+#
+#   -e project=<project>                            write its tokens
+#   -e project=<project> -e git_token_action=remove remove them, both lifetimes
+#
+# Each token is fetched on the controller with `git credential fill`, so
+# whatever credential helper the controller uses answers, and written to the
+# VM by lifetime: session on tmpfs, deleted by the launcher when the session
+# ends; permanent on disk. The token travels on stdin and stdout only, and
+# every task that holds it has no_log. See docs/design.md, "Repository tokens".
+
+- name: Check the project and the action
+  ansible.builtin.assert:
+    that:
+      - project is defined
+      - project is string
+      - project is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - git_token_action | default('write') in ['write', 'remove']
+    fail_msg: >-
+      Give the project as -e project=<name> (letters, digits, '.', '_', '-',
+      starting with a letter or digit), and git_token_action as write (the
+      default) or remove.
+    quiet: true
+
+- name: Look up the sandbox user and its directories
+  ansible.builtin.import_tasks: paths.yml
+
+- name: Record the project's token directories
+  ansible.builtin.set_fact:
+    _agentbox_token_dirs:
+      permanent: "{{ _agentbox_token_dir }}/{{ project }}"
+      session: "{{ _agentbox_session_token_dir }}/{{ project }}"
+
+# ---- remove --------------------------------------------------------------------
+
+# A session token in use is already renamed by the launcher and goes when the
+# session ends; this removes the one waiting for the next session.
+- name: Remove the project's tokens
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ _agentbox_token_dirs.values() | list }}"
+  when: git_token_action | default('write') == 'remove'
+
+- name: Stop after removing
+  ansible.builtin.meta: end_host
+  when: git_token_action | default('write') == 'remove'
+
+# ---- check the inventory ----------------------------------------------------------
+
+- name: Check that the project has tokens in agentbox_git_tokens
+  ansible.builtin.assert:
+    that:
+      - agentbox_git_tokens[project] is defined
+      - agentbox_git_tokens[project] is sequence
+      - agentbox_git_tokens[project] | length > 0
+    fail_msg: >-
+      agentbox_git_tokens has no list of tokens for {{ project }}. See the
+      README, "Repository tokens".
+    quiet: true
+
+- name: Check each token's url and lifetime
+  ansible.builtin.assert:
+    that:
+      - item.url is defined
+      - item.url is match('^https://[^/@\s]+/[^\s]+$')
+      - item.lifetime | default('') in ['session', 'permanent']
+      - item.git_config | default({}) is mapping
+    fail_msg: >-
+      {{ project }}: every token needs url (https://<host>/<path>, no user in
+      it), lifetime (session or permanent) and optionally git_config, a
+      mapping of git -c options. Got: {{ item }}
+    quiet: true
+  loop: "{{ agentbox_git_tokens[project] }}"
+  loop_control:
+    label: "{{ item.url | default('(no url)') }}"
+
+- name: Record each token's host, path and lifetime
+  ansible.builtin.set_fact:
+    _agentbox_git_entries: >-
+      {{ _agentbox_git_entries | default([]) + [{
+           'url': item.url,
+           'host': item.url | urlsplit('netloc'),
+           'hostname': item.url | urlsplit('hostname'),
+           'path': item.url | urlsplit('path') | regex_replace('^/', ''),
+           'lifetime': item.lifetime,
+           'git_config': item.git_config | default({}),
+         }] }}
+  loop: "{{ agentbox_git_tokens[project] }}"
+  loop_control:
+    label: "{{ item.url }}"
+
+# One file per host: two tokens for one host would overwrite each other. A
+# fine-grained token covers several repositories of one owner.
+- name: Check that every host has one token
+  ansible.builtin.assert:
+    that:
+      - (_agentbox_git_entries | map(attribute='host') | unique | length)
+        == (_agentbox_git_entries | length)
+    fail_msg: >-
+      {{ project }} has more than one token for one host:
+      {{ _agentbox_git_entries | map(attribute='host') | list }}.
+    quiet: true
+
+# A token for a host the sandbox cannot reach is useless, and allowing the
+# host is a decision of its own: every entry is also a way out for data.
+- name: Check that every host is on the egress allowlist
+  vars:
+    _dots: "{{ egress_allowlist | select('match', '^\\.') | map('regex_escape') | list }}"
+  ansible.builtin.assert:
+    that: >-
+      item.hostname in egress_allowlist
+      or (_dots | length > 0
+          and ('.' ~ item.hostname) is search('(' ~ (_dots | join('|')) ~ ')$'))
+    fail_msg: >-
+      {{ item.hostname }} is not on egress_allowlist. Add it there first, and
+      apply with --tags egress,agentbox; see the README, "Egress".
+    quiet: true
+  loop: "{{ _agentbox_git_entries }}"
+  loop_control:
+    label: "{{ item.hostname }}"
+
+# ---- fetch, on the controller --------------------------------------------------
+
+# From / rather than the current directory: inside a repository, its own
+# credential settings would apply and could answer with another token. No
+# prompt: a helper that does not answer fails the run instead of waiting for
+# a password. Never followed by `git credential approve`, so no helper is
+# asked to store anything.
+#
+# Become and the interpreter as variables, not keywords: the implicit
+# localhost reads group_vars/all, where an inventory may set ansible_become
+# for the VM, and a variable outranks the keyword. Without them, the task
+# would try sudo on the controller.
+- name: Ask the controller's git for each token
+  vars:
+    _kv: "{{ item.git_config | dictsort | map('join', '=') | list }}"
+    ansible_become: false
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  ansible.builtin.command:
+    argv: "{{ ['git'] + ((['-c'] * (_kv | length)) | zip(_kv) | flatten) + ['credential', 'fill'] }}"
+    stdin: |
+      protocol=https
+      host={{ item.host }}
+      path={{ item.path }}
+    chdir: /
+  environment:
+    GIT_TERMINAL_PROMPT: "0"
+    GIT_ASKPASS: "false"
+  delegate_to: localhost
+  become: false
+  register: _agentbox_fill
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  no_log: true
+  loop: "{{ _agentbox_git_entries }}"
+
+# Two lists: the outcome without the token, safe to report; and the files
+# to write, which only no_log tasks touch.
+- name: Sort the answers
+  no_log: true
+  ansible.builtin.set_fact:
+    _agentbox_git_status: >-
+      {%- set out = [] -%}
+      {%- for r in _agentbox_fill.results -%}
+      {%- set u = (r.stdout | default('') | regex_search('(?m)^username=(.+)$', '\\1') or [''])[0] -%}
+      {%- set p = (r.stdout | default('') | regex_search('(?m)^password=(.+)$', '\\1') or [''])[0] -%}
+      {%- set _ = out.append({'url': r.item.url, 'rc': r.rc | default(-1),
+                              'stderr': r.stderr | default(r.module_stderr | default(r.msg | default(''))),
+                              'ok': r.rc | default(-1) == 0 and u != '' and p != ''}) -%}
+      {%- endfor -%}
+      {{ out }}
+    _agentbox_git_files: >-
+      {%- set out = [] -%}
+      {%- for r in _agentbox_fill.results -%}
+      {%- set u = (r.stdout | default('') | regex_search('(?m)^username=(.+)$', '\\1') or [''])[0] -%}
+      {%- set p = (r.stdout | default('') | regex_search('(?m)^password=(.+)$', '\\1') or [''])[0] -%}
+      {%- set _ = out.append({'host': r.item.host, 'lifetime': r.item.lifetime,
+                              'content': 'username=' ~ u ~ '\n' ~ 'password=' ~ p ~ '\n'}) -%}
+      {%- endfor -%}
+      {{ out }}
+
+- name: Check that the controller's git answered for every token
+  ansible.builtin.assert:
+    that: item.ok
+    fail_msg: >-
+      git credential fill gave no username and password for {{ item.url }}
+      (rc {{ item.rc }}). Its helpers said: {{ item.stderr | default('', true) }}
+    quiet: true
+  loop: "{{ _agentbox_git_status }}"
+  loop_control:
+    label: "{{ item.url }}"
+
+# ---- write, on the VM ---------------------------------------------------------------
+
+# Lingering gives the sandbox user its /run/user directory at boot.
+- name: Check that the sandbox user's runtime directory exists
+  ansible.builtin.stat:
+    path: "/run/user/{{ _sandbox_uid }}"
+  register: _agentbox_runtime_dir
+
+- name: Assert the runtime directory exists
+  ansible.builtin.assert:
+    that: _agentbox_runtime_dir.stat.isdir | default(false)
+    fail_msg: >-
+      /run/user/{{ _sandbox_uid }} is missing; is {{ sandbox_user }} lingering?
+      Run the sandbox playbook with --tags podman.
+    quiet: true
+
+# Replacing what was there: a lifetime the project no longer uses loses its
+# directory, and within one it uses, a host no longer listed loses its file.
+- name: Remove the directories of lifetimes the project does not use
+  ansible.builtin.file:
+    path: "{{ _agentbox_token_dirs[item] }}"
+    state: absent
+  loop: "{{ ['session', 'permanent'] | difference(_agentbox_git_entries | map(attribute='lifetime')) }}"
+
+- name: Create the token directories in use
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ sandbox_user }}"
+    group: "{{ sandbox_user }}"
+    mode: "0700"
+  loop: >-
+    {{ (['/run/user/' ~ _sandbox_uid ~ '/agentbox',
+         '/run/user/' ~ _sandbox_uid ~ '/agentbox/tokens',
+         _agentbox_session_token_dir,
+         _agentbox_token_dirs.session]
+        if 'session' in _agentbox_git_entries | map(attribute='lifetime') else [])
+       + ([_agentbox_token_dir, _agentbox_token_dirs.permanent]
+          if 'permanent' in _agentbox_git_entries | map(attribute='lifetime') else []) }}
+
+- name: Find the token files already there
+  ansible.builtin.find:
+    paths: "{{ _agentbox_git_entries | map(attribute='lifetime') | unique | map('extract', _agentbox_token_dirs) | list }}"
+    file_type: any
+    hidden: true
+  register: _agentbox_existing_tokens
+
+- name: Remove token files for hosts no longer listed
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: >-
+    {{ _agentbox_existing_tokens.files | map(attribute='path')
+       | difference(_agentbox_git_files
+                    | map(attribute='lifetime') | map('extract', _agentbox_token_dirs)
+                    | zip(_agentbox_git_files | map(attribute='host'))
+                    | map('join', '/')) }}
+
+- name: Write the tokens
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "{{ _agentbox_token_dirs[item.lifetime] }}/{{ item.host }}"
+    owner: "{{ sandbox_user }}"
+    group: "{{ sandbox_user }}"
+    mode: "0600"
+  diff: false
+  no_log: true
+  loop: "{{ _agentbox_git_files }}"
+
+- name: Say what was written
+  ansible.builtin.debug:
+    msg: "{{ project }}: {{ item.host }} ({{ item.lifetime }})"
+  loop: "{{ _agentbox_git_entries }}"
+  loop_control:
+    label: "{{ item.host }}"

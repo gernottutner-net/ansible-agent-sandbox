@@ -30,3 +30,13 @@ vm_hostonly_ip: "192.168.56.20"
 # VirtualBox format: 12 hex digits, no separators; unique across VMs.
 vm_nat_mac: "080027A9E521"
 vm_hostonly_mac: "080027A9E520"
+
+# ---- Repository tokens ------------------------------------------------------------
+# Per project, for the git_token playbook; see the README, "Repository tokens".
+# Names where the controller's git finds each token, never the token itself.
+# agentbox_git_tokens:
+#   myproj:
+#     - url: https://github.com/<owner>/<repo>
+#       lifetime: session                 # or: permanent
+#       git_config:                       # optional: -c options for git credential fill
+#         credential.<setting>: <value>
