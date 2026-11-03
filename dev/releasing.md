@@ -93,10 +93,12 @@ or insecure are released at once.
   reason for it.
 - **What changed first, the version second.** One or two concrete points a
   user would care about, from the release notes.
-- **Link the GitHub release**, `…/releases/tag/vX.Y.Z`. Check the preview
-  card the first time: if it is GitHub's generic release card instead of
-  the social preview banner, link the repository and name the tag in the
-  text.
+- **Link the repository, not the release page.** The repository page
+  carries the social preview banner as its `og:image`, from which X and
+  Mastodon build the link card; a release page always carries GitHub's
+  generated release card instead (checked with `v0.3.0`). The version is in
+  the post's first line, and the README's install line is pinned to the
+  tag.
 - **Mastodon: hashtags.** With no algorithm, they are how a post is found.
   CamelCase, so screen readers say them right.
 - **X: the link in the first reply**, not in the post, which is widely
@@ -106,8 +108,9 @@ or insecure are released at once.
 - **X: two or three hashtags**, such as
   `#Ansible #VirtualBox #ClaudeCode`; more look like spam there. Mastodon
   gets the full set.
-- **The banner as an image, with alt text**, where the link card is weak:
-  `docs/images/README_banner.png`, and its alt text from the README.
+- **The banner as an image, with alt text**, only where a post has no
+  link card: `docs/images/README_banner.png`, and its alt text from the
+  README.
 
 ```text
 sacVB vX.Y.Z — <name>: <the headline change, in one line>.
@@ -115,7 +118,7 @@ sacVB vX.Y.Z — <name>: <the headline change, in one line>.
 - <point 1>
 - <point 2>
 
-https://github.com/gernottutner-net/ansible-agent-sandbox/releases/tag/vX.Y.Z
+https://github.com/gernottutner-net/ansible-agent-sandbox
 
 #Ansible #VirtualBox #Podman #ClaudeCode #AgenticCoding
 ```
