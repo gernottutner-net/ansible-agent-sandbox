@@ -246,8 +246,15 @@ To stop it, shut the guest down cleanly, through its ACPI power button:
 
 ```bash
 VBoxManage controlvm sandbox-vm acpipowerbutton
-VBoxManage list runningvms                         # gone once it is off
+while VBoxManage list runningvms | grep -q '"sandbox-vm"'; do sleep 2; done
 ```
+
+`acpipowerbutton` returns at once: it only presses the button. The guest
+then stops its services and powers off on its own, which takes some
+seconds, and minutes on a host that is swapping. The loop returns once
+the VM is off. Only if the guest never gets there, power it off hard,
+like pulling the plug:
+`VBoxManage controlvm sandbox-vm poweroff`.
 
 A shutdown or reboot of the guest clears every `session`
 [repository token](#repository-tokens), which is kept on tmpfs.
@@ -272,7 +279,7 @@ then:
 
 ```bash
 VBoxManage controlvm sandbox-vm acpipowerbutton
-VBoxManage list runningvms                         # wait until it is gone
+while VBoxManage list runningvms | grep -q '"sandbox-vm"'; do sleep 2; done
 ansible-playbook tutner.agent_sandbox.provision    # applies the values, starts the VM
 VBoxManage showvminfo sandbox-vm --machinereadable | grep -E '^(memory|cpus)='
 ```
