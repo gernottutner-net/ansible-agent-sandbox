@@ -13,7 +13,12 @@ level.
 
 #### Changed
 
+- The project gets a brand name, **sacVB**: sandbox for agentic coding on VirtualBox. README: the title becomes "sacVB: a sandbox for agentic coding on VirtualBox", and the intro spells the name out; `galaxy.yml`'s description starts with it. `docs/images/README_banner.png`, also the GitHub social preview, shows sacVB as a wordmark above "sandbox for agentic coding on VirtualBox", where it said "A sandbox for agentic coding on VirtualBox"; the README's alt text names it.
 - README, "Install": the command installs the release by its tag, `,v0.3.0`, instead of `main`; a tag is the commit that passed the release tests and is never moved, while `main` is what comes next, untested as a release, and still reports the last release's version. `dev/releasing.md`, "How to release", step 3 names the three pinned examples a release updates.
+
+#### Decisions
+
+- sacVB is a brand only: the repository stays `ansible-agent-sandbox` and the collection `tutner.agent_sandbox`, so install URLs, FQCNs and existing playbooks keep working. Written `sacVB` in prose, `sacvb` where only lowercase works, such as GitHub topics and file names.
 
 ## [0.3.0] - 2026-11-03 — Tuning the VM & Super Nice Diagrams
 

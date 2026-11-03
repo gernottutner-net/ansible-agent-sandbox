@@ -8,7 +8,7 @@ readme: README.md
 authors:
   - Gernot Tutner
 description: >-
-  A sandbox for agentic coding on VirtualBox: creates and snapshots a
+  sacVB, a sandbox for agentic coding on VirtualBox: creates and snapshots a
   disposable Debian 13 VM, and runs Claude Code in it under rootless Podman,
   default-deny egress through Squid, and a pinned image with its strict
   inner sandbox.

@@ -1,8 +1,9 @@
-# A sandbox for agentic coding on VirtualBox
+# sacVB: a sandbox for agentic coding on VirtualBox
 
-![A hooded robot with red eyes sits at a desk behind prison bars, its terminal answering `sudo: not found`, under a "World domination (pending approval)" poster: a disposable VM, rootless Podman and an egress allowlist](docs/images/README_banner.png)
+![sacVB, sandbox for agentic coding on VirtualBox: a hooded robot with red eyes sits at a desk behind prison bars, its terminal answering `sudo: not found`, under a "World domination (pending approval)" poster: a disposable VM, rootless Podman and an egress allowlist](docs/images/README_banner.png)
 
-An Ansible collection, `tutner.agent_sandbox`, for a sandbox for agentic
+**sacVB** — sandbox for agentic coding on VirtualBox —
+is an Ansible collection, `tutner.agent_sandbox`, for a sandbox for agentic
 coding with Claude Code **on VirtualBox**, end to end: it creates the
 Debian 13 VM on your VirtualBox host, snapshots and destroys it, and turns
 it into the sandbox: rootless Podman under a sudo-less account, default-deny
