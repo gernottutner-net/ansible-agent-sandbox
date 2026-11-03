@@ -23,6 +23,7 @@
 ## Rules
 - All doc files, except CHANGES.md, get a TOC.
 - Never automatically commit. Every `git commit`, every push, and every write to the remote issue tracker (issue bodies, comments, labels, state) gets its own explicit ask, with the content shown first — regardless of what was approved earlier in the same task. A "do it" for a task is not a yes for the recorded actions inside it.
+- Issues get a type (Feature, Bug or Task), not the labels `bug` or `enhancement`. Labels only for what a type cannot say.
 - Never install or pull external resources, like NPM packages, automatically.
 - Before every commit check the consistency of the doc files. Also check the correctness of their TOCs.
 - The doc files: directory docs/, directory dev/, README.md.
