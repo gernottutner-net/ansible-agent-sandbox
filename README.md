@@ -26,6 +26,7 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
 - [What you get](#what-you-get)
 - [Requirements](#requirements)
 - [Install](#install)
+- [Updating the collection](#updating-the-collection)
 - [Configure](#configure)
 - [Create the VM and the sandbox](#create-the-vm-and-the-sandbox)
 - [Check the sandbox](#check-the-sandbox)
@@ -114,6 +115,47 @@ collections:
     type: git
     version: v0.3.0
 ```
+
+## Updating the collection
+
+A new release is installed the same way, over the old one:
+
+1. Read the release's notes on GitHub, or its entry in
+   [CHANGES.md](CHANGES.md): "Action needed on an existing install" says
+   what to change in your files first, such as a new image tag.
+2. Snapshot the VM, so you can go back:
+
+   ```bash
+   ansible-playbook tutner.agent_sandbox.snapshot -e snapshot_action=take -e snapshot_name=pre-update
+   ```
+
+3. Install the new version, pinned to its tag, or with the new `version:`
+   in your `requirements.yml` and
+   `ansible-galaxy collection install -r requirements.yml`:
+
+   ```bash
+   ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git,v0.3.0
+   ansible-galaxy collection list tutner.agent_sandbox     # shows the new version
+   ```
+
+4. See what it would change on the VM, then apply it:
+
+   ```bash
+   ansible-playbook tutner.agent_sandbox.provision
+   ansible-playbook tutner.agent_sandbox.sandbox --check --diff
+   ansible-playbook tutner.agent_sandbox.sandbox
+   ```
+
+From a Git URL, `ansible-galaxy` installs every time, also an older tag
+over a newer one, so `--force` is not needed. It replaces the installed
+collection as a whole: a change made by hand inside it is lost. Your
+working directory is not touched: the inventory, `host_vars`,
+`group_vars`, `ansible.cfg` and the snapshot state stay as they are. A
+release may bring new variables: compare your files with `examples/` at
+the new tag.
+
+To go back, install the previous tag the same way, and restore the
+snapshot.
 
 ## Configure
 
