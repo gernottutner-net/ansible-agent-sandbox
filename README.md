@@ -112,7 +112,7 @@ you already have, and install it with
 collections:
   - name: https://github.com/gernottutner-net/ansible-agent-sandbox.git
     type: git
-    version: v0.2.0
+    version: v0.3.0
 ```
 
 ## Configure

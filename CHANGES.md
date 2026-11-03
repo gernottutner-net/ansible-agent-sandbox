@@ -5,10 +5,13 @@ level.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-03 — Tuning the VM & Super Nice Diagrams
+
 ### 2026-11-03
 
 #### Added
 
+- `docs/release-tests.md`: new section "The release test of v0.3.0", listed in the table of contents: steps 1 to 9 on `59a7843`, on a new VM `rt-vm` with 4 GB beside the `sandbox-vm` in use, with each step's `changed=` count, all passed; the upgrade test from `v0.2.0` on `sandbox-vm`, where `provision` applied `vm_memory_mb: 4096` to the powered-off VM; two observations, no bug: `git push -u` in Claude's sandbox wrote `.git/config` this time, unlike finding 1 of `v0.2.0`, and the memory and CPU step is untested on a saved or paused VM. "Not covered yet" names the first.
 - Linting with `yamllint` and `ansible-lint`. `.yamllint`: yamllint's defaults, lines up to 120 columns, and the settings ansible-lint expects. `.ansible-lint`: the `production` profile, without `.claude/`, `.vscode/`, `.ansible/`, `docs/`, `dev/` and `security/`, and three rules skipped, each with its reason: `var-naming[no-role-prefix]` (the variable names are the interface), `name[template]` (the `[{{ vm_name }}]` prefix) and `galaxy[no-changelog]`. New `dev/linting.md`: how to run them, what they check, the configs and the skips, and how to install them on Ubuntu 22.04, not with ansible-core 2.17 pinned, which ansible-lint 26.10.1 refuses. `docs/release-tests.md`, "Before": both pass on the commit under test. `.claude/CLAUDE.md` lists `dev/linting.md` as context.
 - `security/audits/2026-11-03-ansible-lint.md`: an audit of what a pipx install of ansible-lint 26.10.1 pulls in. Socket Firewall allowed all 31 packages; OSV lists 17 advisories, all in `filelock` 4.1.0, which pip picks on Python 3.10; one of them is reachable, and only when ansible-lint's cache falls back to `/tmp`. With the reachability from ansible-lint's source, ranked recommendations, and the OSV check script.
 - `virtualbox_vm`: `provision` applies `vm_memory_mb` and `vm_cpus` to an existing VM with `modifyvm` when it finds the VM powered off (or aborted) and either value differs. Before, both were used only when the VM was created, and changing them for an existing VM did nothing, silently. A VM that is running, paused or saved keeps its values, with a message naming the configured and the asked-for values and what to do; the role never shuts a guest down for them. `vm_disk_size` and `vm_vram_mb` still apply only to a new VM. The role's defaults, `examples/host_vars/sandbox-vm.yml` and `docs/virtualbox.md`, "Provisioning", say so; the README's "Create the VM and the sandbox" and "Starting and stopping the VM" too.

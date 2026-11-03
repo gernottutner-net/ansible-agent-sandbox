@@ -2,12 +2,13 @@
 
 What is tested before a release, what the runs before `v0.1.0` covered
 and found, the first install of that release from GitHub, and the release
-test of `v0.2.0`. The [README](../README.md) says how to use the collection,
+tests of `v0.2.0` and `v0.3.0`. The [README](../README.md) says how to use the collection,
 [docs/virtualbox.md](virtualbox.md) covers the VM, and
 [docs/design.md](design.md) why the sandbox is built the way it is.
 
 The runs ran on an Ubuntu 22.04 host with VirtualBox 7.0, against a Debian
-13 guest, with Claude Code 2.1.284 in the image. Commits named here, such
+13 guest, with Claude Code 2.1.284 in the image, except where a run says
+otherwise. Commits named here, such
 as `56d06bd`, are this repository's: the code a run tested, or the fix it
 led to.
 
@@ -31,6 +32,10 @@ led to.
   - [The run](#the-run)
   - [Upgrade from v0.1.0](#upgrade-from-v010)
   - [Findings](#findings)
+- [The release test of v0.3.0](#the-release-test-of-v030)
+  - [The run on a VM of its own](#the-run-on-a-vm-of-its-own)
+  - [Upgrade from v0.2.0](#upgrade-from-v020)
+  - [Observations](#observations)
 - [Not covered yet](#not-covered-yet)
 
 ---
@@ -348,6 +353,71 @@ This VM was kept.
    `v0.1.0`. Not fixed: proposed, a task that reports `changed` in check
    mode when the tag is missing.
 
+## The release test of v0.3.0
+
+On 2026-11-03, before `v0.3.0` was tagged, on `59a7843`, with the
+collection installed from a local clone with `git+file://…` and
+`--force`; its roles and playbooks were identical to the commit's.
+`ansible-lint` and `yamllint` passed on it, and every playbook passed
+`--syntax-check`.
+
+### The run on a VM of its own
+
+The VM `sandbox-vm` was in use and stayed, so the run used a new VM
+`rt-vm`, as [Adding a VM](virtualbox.md#adding-a-vm) describes: its own
+host-only address (`.30`), MACs and key. `examples/` copied in afresh from
+`59a7843` and checked with `diff -r`; then the inventory's host renamed,
+the host_vars file renamed to `rt-vm.yml` and changed in the key paths,
+the address, the MACs, `vm_memory_mb: 4096` and `agentbox_git_tokens` for
+step 5. 4 GB instead of the default 6 GB, which the host could not spare
+beside its other work: enough for one session, as the sizing guide says.
+
+| # | Step | Result |
+|---|---|---|
+| 1 | `provision` | passes: `changed=15`, cloud-init done; the VM has 4096 MB and 4 CPUs, and the new step for an existing VM's memory and CPUs is skipped for a new one |
+| 2 | `sandbox`, first run | passes, image build included, in under 3 minutes: `changed=30` |
+| 3 | `sandbox`, second run | `changed=0` |
+| 4 | Smoke tests from the README, word for word, as `agent` | all pass, with the values of the runs before; `~/projects` and `~/.agentbox` left empty |
+| 5 | Repository tokens, for the private GitHub repository kept for tests, with a fine-grained token from a `pass`-backed credential helper on the controller | `git_token` wrote each project's token, `changed=2`, files `0600` in directories `0700`, the token in neither log. **`session`, in `agentbox rt-s bash`**: clone, commit and push of a branch; the launcher named the token's host and lifetime; the only credential setting `credential.helper agentbox` from `/etc/gitconfig`, no token in the remote URL, no `~/.git-credentials`, no file in `/work` or the home directory with a token prefix; the token gone after the session. With a new `session` token, the session started behind `ssh -tt`: the token mounted `ro`, a write refused, a second start in the project refused with the token kept; `kill -9` on the `ssh` client, and container and token were gone within 0.3 s. **`permanent`, with Claude** (`agentbox --auto rt-p -p …`, cloning into a subdirectory, after a login in `agentbox rt-p`): clone, commit and push of a branch through Claude's sandbox; the token in neither the state directory, the two transcripts, `/work` nor the output. Observation 1 below. Both branches deleted with `git push --delete` from a session; `remove` left no token, only the empty `tokens/session` directories on tmpfs; `~/projects`, `~/.agentbox` and `~/.agentbox-tokens` left empty |
+| 6 | `snapshot` take `base` | passes: `changed=5` in 55 s, the poll waiting through seven retries for the guest to stop; the state file next to the inventory, the collection holds none |
+| 7 | take `pre-session`, restore `pre-session`, restore `base` | pass: `changed=3` each. `ssh` right after each connects. After `pre-session` only the marker written before it is there; after `base`, neither |
+| 8 | `sandbox` afterwards | `changed=0` |
+| 9 | `destroy --limit rt-vm -e destroy_confirm=yes` | passes in 8.8 s on the running VM with two snapshots: `changed=5`. No VM, no registered disk or DVD, no machine folder, no build artefacts; the base image cache stays. The state file then deleted by hand |
+
+The known unknowns did not run: Claude Code, the managed settings and the
+launcher are unchanged since `v0.2.0`.
+
+### Upgrade from v0.2.0
+
+On the VM `sandbox-vm`, built from `v0.2.0` with Claude Code 2.1.317 in
+the image (`sandbox_image_tag: "0.2.0-cc2.1.317"`) and a `base` snapshot,
+powered off, with 6 GB. The collection at `59a7843`, and
+`vm_memory_mb: 4096` set in its host_vars:
+
+| Step | Result |
+|---|---|
+| `provision` | `changed=2`: `Apply vm_memory_mb and vm_cpus to the powered-off VM` changed, the warning skipped, the VM started; VirtualBox then reports `memory=4096`, `cpus=4` |
+| `sandbox --check --diff` | `changed=0`: the release's role changes, `become` beside `become_user` and `changed_when`, change nothing on the VM, as CHANGES.md says |
+| `sandbox` | `changed=0` |
+
+This VM was kept.
+
+### Observations
+
+No bug was found. Two things worth knowing:
+
+1. **Finding 1 of `v0.2.0` did not reproduce.** Claude ran `git push -u`
+   in its sandbox, and the upstream landed in `.git/config`
+   (`branch.rt-v030-permanent.remote` and `.merge`), with the same Claude
+   Code 2.1.284 that failed with `Device or resource busy` in the
+   [release test of v0.2.0](#findings). Why it differs is not known. The
+   README's advice, to set up git configuration in
+   `agentbox <project> bash`, stays: it works either way.
+2. **The memory and CPU step was tested both ways:** in a stand-in for a
+   running VM, which gives the warning and changes nothing, and for real
+   on `sandbox-vm` in the upgrade test. Not tested on a VM that is
+   `saved` or `paused`, which takes the warning path as well.
+
 ## Not covered yet
 
 - Heavier work in two concurrent sessions, and whether Claude Code
@@ -360,3 +430,5 @@ This VM was kept.
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
 - `--check --diff` showing an image rebuild: finding 3 of the
   [release test of v0.2.0](#findings), not fixed.
+- Why Claude could write `.git/config` in the release test of `v0.3.0`
+  and not in that of `v0.2.0`: [observation 1](#observations).

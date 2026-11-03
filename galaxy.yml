@@ -3,7 +3,7 @@
 #   ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git
 namespace: tutner
 name: agent_sandbox
-version: 0.2.0
+version: 0.3.0
 readme: README.md
 authors:
   - Gernot Tutner
