@@ -4,7 +4,9 @@
 # again.
 - name: Migrate rootless Podman storage
   ansible.builtin.command: podman system migrate
+  become: true
   become_user: "{{ sandbox_user }}"
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
   when: _sandbox_uid is defined
+  changed_when: true

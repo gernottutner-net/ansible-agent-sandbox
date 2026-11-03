@@ -1,0 +1,21 @@
+---
+# ansible-lint config. Run from the repository root: ansible-lint
+profile: production
+
+exclude_paths:
+  - .claude/
+  - .vscode/
+  - .ansible/
+  - docs/
+  - dev/
+  - security/
+
+skip_list:
+  # The variable names are part of the interface: sandbox_user and
+  # egress_allowlist are shared by several roles, vm_ is the documented prefix
+  # of virtualbox_vm. Role prefixes would break every inventory.
+  - var-naming[no-role-prefix]
+  # The "[{{ vm_name }}]" prefix shows, with several VMs, which VM a task ran for.
+  - name[template]
+  # The changelog is CHANGES.md, and the collection is never published to Galaxy.
+  - galaxy[no-changelog]

@@ -1,0 +1,21 @@
+---
+# yamllint config, read by yamllint itself and by ansible-lint.
+# Kept to options yamllint 1.26 (Ubuntu 22.04) understands.
+extends: default
+
+rules:
+  # The comments are wrapped near 80 columns; the longer lines are Jinja
+  # expressions and argv entries, which read better unbroken.
+  line-length:
+    max: 120
+  # Settings ansible-lint expects from a yamllint config.
+  braces:
+    max-spaces-inside: 1
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  truthy:
+    allowed-values: ["true", "false"]

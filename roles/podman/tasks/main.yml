@@ -159,6 +159,7 @@
 # check that the limits the launcher will set can actually bind.
 - name: Query Podman as the sandbox user
   ansible.builtin.command: podman info --format json
+  become: true
   become_user: "{{ sandbox_user }}"
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"

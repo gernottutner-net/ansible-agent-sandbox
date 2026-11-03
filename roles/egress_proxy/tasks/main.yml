@@ -222,6 +222,7 @@
 - name: Probe egress as the sandbox user
   ansible.builtin.command:
     argv: "{{ ['curl', '-sS', '-o', '/dev/null', '--max-time', '10'] + item.args }}"
+  become: true
   become_user: "{{ sandbox_user }}"
   loop:
     - name: allowed

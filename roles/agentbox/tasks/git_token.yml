@@ -235,7 +235,9 @@
 
 - name: Find the token files already there
   ansible.builtin.find:
-    paths: "{{ _agentbox_git_entries | map(attribute='lifetime') | unique | map('extract', _agentbox_token_dirs) | list }}"
+    paths: >-
+      {{ _agentbox_git_entries | map(attribute='lifetime') | unique
+         | map('extract', _agentbox_token_dirs) | list }}
     file_type: any
     hidden: true
   register: _agentbox_existing_tokens

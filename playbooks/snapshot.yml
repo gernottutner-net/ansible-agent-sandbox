@@ -3,9 +3,12 @@
 #
 #   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm
 #   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm -e snapshot_action=take
-#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm -e snapshot_action=take -e snapshot_name=pre-session
-#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm -e snapshot_action=restore -e snapshot_name=pre-session
-#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm -e snapshot_action=delete -e snapshot_name=pre-session
+#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm \
+#     -e snapshot_action=take -e snapshot_name=pre-session
+#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm \
+#     -e snapshot_action=restore -e snapshot_name=pre-session
+#   ansible-playbook tutner.agent_sandbox.snapshot --limit sandbox-vm \
+#     -e snapshot_action=delete -e snapshot_name=pre-session
 #
 # The cheap way back to a known-good VM after a session you do not trust.
 # Retention and the recorded baseline are explained in tasks/snapshot.yml

@@ -47,6 +47,7 @@
 
 - name: Look for the image as the sandbox user
   ansible.builtin.command: "podman image inspect {{ _agentbox_image }}"
+  become: true
   become_user: "{{ sandbox_user }}"
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
@@ -85,12 +86,14 @@
       - --file
       - "{{ agentbox_build_dir }}/Containerfile"
       - "{{ agentbox_build_dir }}"
+  become: true
   become_user: "{{ sandbox_user }}"
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
   when:
     - _agentbox_existing.rc != 0
     - not ansible_check_mode
+  changed_when: true          # runs only when the tag is missing
 
 # ---- projects and launcher ------------------------------------------------------
 
@@ -142,6 +145,7 @@
 
 - name: Inspect the image as the sandbox user
   ansible.builtin.command: "podman image inspect {{ _agentbox_image }}"
+  become: true
   become_user: "{{ sandbox_user }}"
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
@@ -180,6 +184,7 @@
       - sh
       - -c
       - 'claude --version && id -u && git config --system --get credential.helper'
+  become: true
   become_user: "{{ sandbox_user }}"
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"

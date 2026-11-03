@@ -54,6 +54,8 @@ not a workaround. Every step is a command from the README or from
   local clone with `git+file://…` and `--force`. Its roles must be
   identical to the commit's.
 - Room on the host for the VM's defaults: 6 GB RAM, 4 CPUs, 40 GB.
+- `ansible-lint` and `yamllint` pass on the commit under test, as
+  [dev/linting.md](../dev/linting.md#running-them) says.
 
 ### The steps
 

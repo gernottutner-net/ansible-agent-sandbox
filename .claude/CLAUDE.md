@@ -11,6 +11,7 @@
 - docs/release-tests.md
 - dev/releasing.md
 - dev/diagrams.md
+- dev/linting.md
 - CHANGES.md
 
 ## Public repository

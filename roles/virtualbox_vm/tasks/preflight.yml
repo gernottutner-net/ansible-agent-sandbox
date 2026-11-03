@@ -111,12 +111,14 @@
 # checks to the VMs actually being provisioned.
 - name: Assert every targeted VM's host-only interface exists
   ansible.builtin.assert:
-    that: "_hostonlyifs.stdout is search('Name:\\s+' ~ (hostvars[item].vm_hostonly_interface | default(vm_hostonly_interface)))"
+    that: "_hostonlyifs.stdout is search('Name:\\s+' ~ _ifname)"
     fail_msg: >-
-      Host-only interface '{{ (hostvars[item].vm_hostonly_interface | default(vm_hostonly_interface)) }}' required by
+      Host-only interface '{{ _ifname }}' required by
       '{{ item }}' does not exist. Create it with:  VBoxManage hostonlyif create
       then set its address:  VBoxManage hostonlyif ipconfig <name> --ip 192.168.56.1
-    success_msg: "Host-only interface {{ (hostvars[item].vm_hostonly_interface | default(vm_hostonly_interface)) }} exists."
+    success_msg: "Host-only interface {{ _ifname }} exists."
+  vars:
+    _ifname: "{{ hostvars[item].vm_hostonly_interface | default(vm_hostonly_interface) }}"
   loop: "{{ ansible_play_hosts }}"
   loop_control:
     label: "{{ item }}"
