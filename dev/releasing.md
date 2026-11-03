@@ -52,8 +52,9 @@ or insecure are released at once.
    for code changes, the upgrade test from the previous tag where a role
    changed, and the known-unknowns session where Claude Code, the managed
    settings or the launcher changed.
-3. `galaxy.yml` has the new version, and so has the pinned install example
-   in the README.
+3. `galaxy.yml` has the new version, and so have the README's pinned
+   install examples: the command and `requirements.yml` under "Install",
+   the command under "Updating the collection".
 4. CHANGES.md: `[Unreleased]` becomes `## [x.y.z] - <date> — <name>`, under
    a fresh empty `[Unreleased]`.
 5. One commit on `main`, subject `Release vX.Y.Z — <name>`, and an annotated

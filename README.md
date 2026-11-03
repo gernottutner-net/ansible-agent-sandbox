@@ -92,11 +92,16 @@ carries a copy of that one as its own.
 ## Install
 
 You don't need an existing Ansible project. The collection is a package:
-installed once, it can be used from any directory.
+installed once, it can be used from any directory. Install a release, by
+its tag:
 
 ```bash
-ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git
+ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git,v0.3.0
 ```
+
+A tag is the commit that passed the release tests, and is never moved.
+Without `,v0.3.0`, you get `main`: what comes next, not tested as a
+release, and still reporting the last release's version.
 
 It goes into the first entry of Ansible's collections path, by default
 `~/.ansible/collections/ansible_collections/tutner/agent_sandbox/`, for
@@ -105,7 +110,7 @@ then be on `collections_path` in `ansible.cfg`.
 `ansible-galaxy collection list tutner.agent_sandbox` shows where it is and
 which version.
 
-Or pin a release in `requirements.yml`, for example in an Ansible project
+Or pin the release in `requirements.yml`, for example in an Ansible project
 you already have, and install it with
 `ansible-galaxy collection install -r requirements.yml`:
 

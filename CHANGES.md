@@ -11,6 +11,10 @@ level.
 
 - README: new section "Updating the collection", after "Install" and listed in the table of contents. Read the release's "Action needed on an existing install" first, snapshot the VM, install the new tag over the old one or bump `version:` in `requirements.yml`, check with `ansible-galaxy collection list`, then `provision`, `sandbox --check --diff` and `sandbox`. From a Git URL `ansible-galaxy` installs every time, also an older tag over a newer one, so `--force` is not needed; it replaces the installed collection as a whole, and leaves the working directory alone. Going back: the previous tag and the snapshot. Tested with `-p` in a throwaway directory, from GitHub: `v0.2.0`, then `v0.3.0` and the unpinned URL without `--force`; `requirements.yml` at `v0.2.0` over `v0.3.0`, and back; a file added inside the installed collection gone after the next install.
 
+#### Changed
+
+- README, "Install": the command installs the release by its tag, `,v0.3.0`, instead of `main`; a tag is the commit that passed the release tests and is never moved, while `main` is what comes next, untested as a release, and still reports the last release's version. `dev/releasing.md`, "How to release", step 3 names the three pinned examples a release updates.
+
 ## [0.3.0] - 2026-11-03 — Tuning the VM & Super Nice Diagrams
 
 ### 2026-11-03
