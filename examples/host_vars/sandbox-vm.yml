@@ -18,6 +18,8 @@ egress_proxy_address: "{{ vm_hostonly_ip }}"
 
 # ---- VirtualBox hardware --------------------------------------------------------
 # Defaults (6 GB, 4 CPUs, 40 GB disk) are in roles/virtualbox_vm/defaults.
+# Memory and CPUs reach an existing VM on the next provision run that finds
+# it off; the disk size only a new VM. See "Tuning the VM" in the README.
 # vm_memory_mb: 6144
 # vm_cpus: 4
 # vm_disk_size: "40G"

@@ -173,6 +173,56 @@
                | default(ansible_failed_result.msg, true)
                | default(ansible_failed_result, true) | trim }}
 
+# ---- Stage 4b: bring an existing VM to vm_memory_mb and vm_cpus -----------
+# Without this, changing either variable for an existing VM would do nothing,
+# silently. modifyvm accepts them only while the VM is powered off (or
+# aborted); for any other state the change is reported and left for a later
+# run. The role never shuts a guest down for it. Everything else (disk size,
+# NICs, firmware) stays as created.
+
+- name: "[{{ vm_name }}] Read the configured memory and CPUs of the existing VM"
+  ansible.builtin.set_fact:
+    _vm_hw_current:
+      memory: "{{ _vminfo.stdout | regex_search('^memory=(\\d+)$', '\\1', multiline=True) | first | int }}"
+      cpus: "{{ _vminfo.stdout | regex_search('^cpus=(\\d+)$', '\\1', multiline=True) | first | int }}"
+      state: "{{ _vminfo.stdout | regex_search('^VMState=\"(.*)\"$', '\\1', multiline=True) | first }}"
+  when: _vm_exists
+
+- name: "[{{ vm_name }}] Record whether memory or CPUs differ from the variables"
+  ansible.builtin.set_fact:
+    _vm_hw_differs: >-
+      {{ _vm_hw_current.memory | int != vm_memory_mb | int
+         or _vm_hw_current.cpus | int != vm_cpus | int }}
+  when: _vm_exists
+
+- name: "[{{ vm_name }}] Apply vm_memory_mb and vm_cpus to the powered-off VM"
+  ansible.builtin.command:
+    argv:
+      - VBoxManage
+      - modifyvm
+      - "{{ vm_name }}"
+      - "--memory={{ vm_memory_mb }}"
+      - "--cpus={{ vm_cpus }}"
+  when:
+    - _vm_exists
+    - _vm_hw_differs | bool
+    - _vm_hw_current.state in ['poweroff', 'aborted']
+  changed_when: true
+
+- name: "[{{ vm_name }}] Warn that memory and CPUs wait for the VM to be off"
+  ansible.builtin.debug:
+    msg: >-
+      VM '{{ vm_name }}' has {{ _vm_hw_current.memory }} MB and
+      {{ _vm_hw_current.cpus }} CPUs, the variables ask for
+      {{ vm_memory_mb }} MB and {{ vm_cpus }} CPUs. VirtualBox changes them
+      only while the VM is off, and it is '{{ _vm_hw_current.state }}'. Shut
+      the guest down (VBoxManage controlvm {{ vm_name }} acpipowerbutton),
+      wait until it is off, and run the provision playbook again.
+  when:
+    - _vm_exists
+    - _vm_hw_differs | bool
+    - _vm_hw_current.state not in ['poweroff', 'aborted']
+
 # ---- Stage 5: power on ----------------------------------------------------
 # Deliberately not guarded on _vm_exists: an existing but powered-off VM should
 # be brought up, which is what makes re-running this playbook useful rather

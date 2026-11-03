@@ -31,6 +31,7 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
 - [Check the sandbox](#check-the-sandbox)
 - [Snapshots and teardown](#snapshots-and-teardown)
 - [Starting and stopping the VM](#starting-and-stopping-the-vm)
+- [Tuning the VM](#tuning-the-vm)
 - [Sessions](#sessions)
   - [The launcher](#the-launcher)
   - [Autonomous mode](#autonomous-mode)
@@ -145,7 +146,8 @@ ansible-playbook tutner.agent_sandbox.provision    # the VM, until cloud-init is
 ansible-playbook tutner.agent_sandbox.sandbox      # the sandbox inside it
 ```
 
-`provision` skips a VM that exists and starts it if it is off. `sandbox`
+`provision` skips the creation of a VM that exists; if it is off, it
+applies `vm_memory_mb` and `vm_cpus` and starts it. `sandbox`
 takes the tags `podman`, `egress` and `agentbox`; a second run reports
 `changed=0`, and `--check --diff` shows what a run would change.
 
@@ -226,8 +228,9 @@ host, it is off. Start it with `provision` again:
 ansible-playbook tutner.agent_sandbox.provision
 ```
 
-For a VM that exists, it skips the creation, starts it headless if it is
-off, and returns once the guest answers over SSH and cloud-init reports
+For a VM that exists, it skips the creation, applies the memory and CPUs
+from your variables if the VM is off (see [Tuning the VM](#tuning-the-vm)),
+starts it headless, and returns once the guest answers over SSH and cloud-init reports
 done. Its preflight and image check run too, so it needs the network for
 Debian's `SHA512SUMS`; the cached image is not downloaded again.
 
@@ -248,6 +251,65 @@ VBoxManage list runningvms                         # gone once it is off
 
 A shutdown or reboot of the guest clears every `session`
 [repository token](#repository-tokens), which is kept on tmpfs.
+
+## Tuning the VM
+
+Two sizes matter: the VM's, set per VM in `host_vars/sandbox-vm.yml`, and
+each session's, set in `group_vars/agent_sandbox.yml`.
+
+| Variable | Default | Where | Takes effect |
+|---|---|---|---|
+| `vm_memory_mb` | `6144` | `host_vars` | next `provision` that finds the VM off |
+| `vm_cpus` | `4` | `host_vars` | next `provision` that finds the VM off |
+| `vm_disk_size` | `"40G"` | `host_vars` | only when the VM is created |
+| `sandbox_memory` | `2g`, no swap | `group_vars` | next session, after `sandbox --tags agentbox` |
+| `sandbox_cpus` | `1.5` | `group_vars` | next session, after `sandbox --tags agentbox` |
+| `sandbox_pids_limit` | `256` | `group_vars` | next session, after `sandbox --tags agentbox` |
+
+**The VM's memory and CPUs.** VirtualBox changes them only while the VM is
+off, and `provision` never shuts a guest down for it. Change the value,
+then:
+
+```bash
+VBoxManage controlvm sandbox-vm acpipowerbutton
+VBoxManage list runningvms                         # wait until it is gone
+ansible-playbook tutner.agent_sandbox.provision    # applies the values, starts the VM
+VBoxManage showvminfo sandbox-vm --machinereadable | grep -E '^(memory|cpus)='
+```
+
+Run against a VM that is running, `provision` changes nothing and says
+which values wait for the VM to be off. A snapshot records the memory and
+CPUs the VM had when it was taken, and a `restore` brings them back;
+`provision` applies the variables again the next time it finds the VM off.
+
+**The session limits** are written into the launcher, not read when it
+runs. Apply them with:
+
+```bash
+ansible-playbook tutner.agent_sandbox.sandbox --tags agentbox
+```
+
+A running session keeps the limits it started with.
+
+**How big.** One session needs `sandbox_memory`, plus Squid and the guest
+itself: about 4 GB for one session with the defaults. Each further session
+at the same time needs another `sandbox_memory`. Details in
+[docs/virtualbox.md](docs/virtualbox.md#adding-a-vm).
+
+**What it costs the host.** A guest page, once used, stays in the host's
+RAM until the VM stops: VirtualBox does not get it back when the guest
+frees it. The guest also counts its file cache as free memory, while the
+host does not. So the VirtualBox process grows towards `vm_memory_mb`
+during a session, even while `free` or `htop` in the guest shows little in
+use, and shrinks only when the VM is restarted. Give the VM what the host
+can spare beside everything else it runs. If the host runs short, it
+swaps, and the guest slows down with it: VirtualBox then logs `TM: Giving
+up catch-up attempt` in the VM's `VBox.log`, because the guest's clock
+falls behind.
+
+**The disk** is grown once, when the VM is created. Changing
+`vm_disk_size` later has no effect on that VM; for a bigger disk, create a
+new VM.
 
 ## Sessions
 

@@ -22,6 +22,9 @@ vm_image_cache_dir: "{{ lookup('env', 'HOME') }}/.cache/ansible-vbox-images"
 
 # ---- VirtualBox hardware defaults (override per host in host_vars) ---------
 # Sized for one sandbox session: a 2 GB container plus Squid.
+# vm_memory_mb and vm_cpus also reach an existing VM: provision applies them
+# with modifyvm whenever it finds the VM powered off. vm_disk_size and
+# vm_vram_mb are used only when the VM is created.
 vm_memory_mb: 6144
 vm_cpus: 4
 vm_disk_size: "40G"          # qemu-img syntax; resized before VMDK conversion

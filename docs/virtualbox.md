@@ -75,7 +75,12 @@ Per run, on the VirtualBox host:
   into a cloud-init seed ISO. Then `createvm`, `modifyvm`, `storagectl`,
   `storageattach` and `startvm --type headless`.
 - **Idempotent:** an existing VM is detected with `showvminfo` and its
-  creation skipped. An existing but powered-off VM is started.
+  creation skipped. An existing but powered-off VM gets `vm_memory_mb` and
+  `vm_cpus` with `modifyvm` where they differ, and is started. A VM that
+  is running, paused or saved keeps its values, with a message naming them;
+  the role never shuts a guest down for them. Everything else, the disk
+  size among it, stays as created. See
+  [Tuning the VM](../README.md#tuning-the-vm).
 - **Atomic:** the slow, fallible work (download, resize, convert, seed ISO)
   happens in a scratch directory before `createvm` runs, and the
   registration that follows is wrapped in `block`/`rescue`. A failure
