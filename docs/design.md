@@ -90,8 +90,13 @@ VirtualBox host
                  └─ Claude Code, its commands under bubblewrap
 ```
 
+The same stack in detail, with the only way out and the role that builds
+each part (its outline colour), with the example policy's address and limits:
+
+![The layers, outside in: the controller runs the playbook sandbox (virtualbox_vm, podman, egress_proxy, agentbox) and git_token. On the VirtualBox host, a Debian 13 VM holds the account agent, rootless Podman, the session container with its limits, and Claude Code under bubblewrap with read-only managed settings; only the project, its Claude Code state, the managed settings and the token directories are mounted in. Traffic leaves as uid agent, passes the nftables owner rule and Squid's allowlist, and goes out over the NAT NIC; anything else is rejected by nftables or answered 403 by Squid. The account ansible has sudo and unrestricted egress, and is reached over SSH on the host-only NIC.](images/architecture.svg)
+
 gVisor would sit between Podman and the container. It is not in the core
-and not in this picture: see
+and not in either picture: see
 [gVisor, the experimental extension](#gvisor-the-experimental-extension).
 
 **The guest: Debian 13, whatever the host runs.** The guest is chosen for

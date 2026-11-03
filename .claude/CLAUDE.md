@@ -10,6 +10,7 @@
 - docs/virtualbox.md
 - docs/release-tests.md
 - dev/releasing.md
+- dev/diagrams.md
 - CHANGES.md
 
 ## Public repository

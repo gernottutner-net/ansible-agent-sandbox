@@ -9,6 +9,8 @@ level.
 
 #### Added
 
+- `dev/diagrams.md`: how the diagrams in `docs/images/` are made and changed. Why light colours are attributes and CSS holds only the dark override (CSS variables showed as black in librsvg viewers; ImageMagick ignores `fill-opacity`), the rules, the palette with its tints and how to compute a new one, the layout grid, and how to check a change with `xmllint` and ImageMagick. `.claude/CLAUDE.md` lists it as context.
+- `docs/design.md`, "Why this stack": a diagram next to the ASCII tree, `docs/images/architecture.svg`. It shows the nested layers from the VM to Claude Code under bubblewrap, the four host paths mounted into the container, the only way out (pasta as uid `agent`, the nftables owner rule, Squid's allowlist, the NAT NIC) with where other traffic is rejected or answered 403, the account `ansible` reached over SSH on the host-only NIC, and the role that builds each part as its outline colour. A hand-written SVG with the light colours as attributes, so it renders in plain SVG viewers too, and a dark variant through `prefers-color-scheme`; the alt text describes it.
 - `.claude/CLAUDE.md`: issues get a type (Feature, Bug or Task), not the labels `bug` or `enhancement`; labels only for what a type cannot say.
 - README: new section "Starting and stopping the VM", listed in the table of contents. The VM does not start with the host; `provision` starts an existing VM that is off and waits for it, and needs the network for Debian's `SHA512SUMS`; or `VBoxManage startvm --type headless` followed by the playbook `wait`. Stopping with `VBoxManage controlvm <vm> acpipowerbutton`, and that a shutdown clears every `session` token.
 

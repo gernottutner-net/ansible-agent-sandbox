@@ -1,0 +1,235 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1290 850" width="1290" height="850" role="img" aria-label="How tutner.agent_sandbox contains a session: Claude Code under bubblewrap, inside a rootless Podman container, run by the unprivileged account agent, inside a disposable Debian VM on VirtualBox. All traffic must pass an nftables owner rule and the Squid allowlist; everything else is rejected.">
+<style>
+@media (prefers-color-scheme: dark){
+text{fill:#e3e8ef}
+.bg{fill:#0f141b}
+.mu{fill:#95a2b4}
+.sub{fill:#95a2b4}
+.lab{fill:#95a2b4}
+.b-host{fill:none;stroke:#95a2b4}
+.b-vm{fill:#17212d;stroke:#6aa8e0}
+.b-pod{fill:#14272b;stroke:#3cc4b3}
+.b-box{fill:#222435;stroke:#a990ec}
+.b-egr{fill:#2b2623;stroke:#f0a35a}
+.b-tok{fill:#2d2d21;stroke:#e0c048}
+.b-mu{fill:#1b2129;stroke:#95a2b4}
+.b-ok{fill:#192b27;stroke:#5cc77a}
+.b-no{fill:#271e23;stroke:#f07066}
+.c-vm{fill:#6aa8e0}.c-pod{fill:#3cc4b3}.c-box{fill:#a990ec}.c-egr{fill:#f0a35a}.c-tok{fill:#e0c048}.c-ok{fill:#5cc77a}.c-no{fill:#f07066}.c-mu{fill:#95a2b4}
+.s-vm{fill:#6aa8e0}.s-pod{fill:#3cc4b3}.s-box{fill:#a990ec}.s-egr{fill:#f0a35a}.s-tok{fill:#e0c048}
+.l-ok{fill:none;stroke:#5cc77a}
+.l-no{fill:none;stroke:#f07066}
+.l-mu{fill:none;stroke:#95a2b4}
+.x{stroke:#f07066}
+.sep{stroke:#a990ec}
+.halo{stroke:#0f141b}
+.chip{fill:#0f141b}
+}
+</style>
+<defs>
+  <marker id="ah-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="c-ok" fill="#1f7f45"/></marker>
+  <marker id="ah-mu" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="c-mu" fill="#5a6575"/></marker>
+  <marker id="ah-no" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="c-no" fill="#c23a2f"/></marker>
+</defs>
+
+<rect class="bg" x="0" y="0" width="1290" height="850" fill="#f4f6f9"/>
+
+<text class="ti" x="20" y="38" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="20px" fill="#18212c" font-weight="700">How a session is contained</text>
+<text class="sub" x="20" y="58" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">tutner.agent_sandbox: five layers, each assuming the one inside it can fail</text>
+
+<!-- Controller -->
+<g data-layer="controller">
+  <rect class="frame b-mu" x="20" y="70" width="205" height="690" rx="8" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
+  <text class="h" x="36" y="94" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Controller</text>
+  <text class="sub" x="36" y="111" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">where you run Ansible</text>
+  <text class="lab" x="36" y="142" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#5a6575" font-weight="600" letter-spacing=".08em">PLAYBOOK SANDBOX</text>
+  <rect class="s-vm" x="36" y="153" width="12" height="12" rx="2" fill="#2f6fae"/>
+  <text class="m" x="56" y="163" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">1 virtualbox_vm</text>
+  <text class="sub small" x="56" y="178" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">VM, NICs, snapshots (host)</text>
+  <rect class="s-pod" x="36" y="193" width="12" height="12" rx="2" fill="#13806f"/>
+  <text class="m" x="56" y="203" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">2 podman</text>
+  <text class="sub small" x="56" y="218" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">account agent, Podman</text>
+  <rect class="s-egr" x="36" y="233" width="12" height="12" rx="2" fill="#b8650f"/>
+  <text class="m" x="56" y="243" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">3 egress_proxy</text>
+  <text class="sub small" x="56" y="258" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">Squid, nftables</text>
+  <rect class="s-box" x="36" y="273" width="12" height="12" rx="2" fill="#6648b8"/>
+  <text class="m" x="56" y="283" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">4 agentbox</text>
+  <text class="sub small" x="56" y="298" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">image, settings, launcher</text>
+  <text class="lab" x="36" y="336" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#5a6575" font-weight="600" letter-spacing=".08em">PLAYBOOK GIT_TOKEN</text>
+  <rect class="s-tok" x="36" y="347" width="12" height="12" rx="2" fill="#94750a"/>
+  <text class="m" x="56" y="357" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">git_token</text>
+  <text class="sub small" x="56" y="372" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">git credential fill, per project</text>
+  <text class="lab" x="36" y="410" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#5a6575" font-weight="600" letter-spacing=".08em">POLICY</text>
+  <text class="m" x="36" y="430" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">group_vars/</text>
+  <text class="m" x="36" y="446" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">agent_sandbox.yml</text>
+  <text class="sub small" x="36" y="464" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">allowlist, limits, image tag</text>
+  <text class="lab" x="36" y="506" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#5a6575" font-weight="600" letter-spacing=".08em">READING THE DRAWING</text>
+  <text class="sub small" x="36" y="525" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">outline colour: the role</text>
+  <text class="sub small" x="36" y="539" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">that builds the part</text>
+  <line class="l-ok" x1="36" y1="560" x2="70" y2="560" marker-end="url(#ah-ok)" fill="none" stroke="#1f7f45" stroke-width="2.2"/>
+  <text class="sub small" x="80" y="564" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">allowed path</text>
+  <line class="l-no" x1="36" y1="582" x2="66" y2="582" fill="none" stroke="#c23a2f" stroke-width="1.8" stroke-dasharray="5 4"/>
+  <line class="x" x1="68" y1="577" x2="78" y2="587" stroke="#c23a2f" stroke-width="2.6" stroke-linecap="round"/><line class="x" x1="78" y1="577" x2="68" y2="587" stroke="#c23a2f" stroke-width="2.6" stroke-linecap="round"/>
+  <text class="sub small" x="88" y="586" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">blocked</text>
+  <text class="sub small" x="36" y="740" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">each role ends by checking</text>
+  <text class="sub small" x="36" y="753" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">what it set up</text>
+</g>
+
+<!-- VirtualBox host -->
+<rect class="b-host" x="245" y="70" width="835" height="765" rx="10" fill="none" stroke="#5a6575" stroke-dasharray="6 4" stroke-width="1.2"/>
+<text class="h" x="261" y="92" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">VirtualBox host</text>
+
+<!-- VM -->
+<g data-layer="vm">
+  <rect class="frame b-vm" x="265" y="105" width="785" height="690" rx="9" stroke-width="1.6" fill="#e4ebf3" stroke="#2f6fae"/>
+  <text class="h" x="281" y="128" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Debian 13 VM</text>
+  <text class="tag c-vm" x="1036" y="128" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#2f6fae" font-weight="600" text-anchor="end">virtualbox_vm</text>
+  <text class="sub" x="281" y="145" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">disposable, snapshotted: baseline + one rolling slot</text>
+  <text class="mu" x="281" y="162" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">stops: a kernel exploit from a container reaching the host</text>
+</g>
+
+<!-- account agent -->
+<g data-layer="account">
+  <rect class="frame b-pod" x="280" y="178" width="460" height="602" rx="8" stroke-width="1.6" fill="#deebec" stroke="#13806f"/>
+  <text class="h" x="296" y="200" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">account agent</text>
+  <text class="tag c-pod" x="726" y="200" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#13806f" font-weight="600" text-anchor="end">podman</text>
+  <text class="sub" x="296" y="217" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">no sudo · own subuid range 200000+ · lingering</text>
+  <text class="mu" x="296" y="234" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">stops: an escape landing as root or as ansible</text>
+  <text class="m c-box" x="296" y="254" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#6648b8">$ sudo -iu agent agentbox &lt;project&gt;</text>
+</g>
+
+<!-- Podman -->
+<g data-layer="podman">
+  <rect class="frame b-pod" x="296" y="266" width="428" height="500" rx="7" stroke-width="1.6" fill="#deebec" stroke="#13806f"/>
+  <text class="h" x="312" y="287" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">rootless Podman 5</text>
+  <text class="tag c-pod" x="710" y="287" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#13806f" font-weight="600" text-anchor="end">podman</text>
+  <text class="sub" x="312" y="303" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">crun · pasta network · systemd cgroup v2</text>
+</g>
+
+<!-- session container -->
+<g data-layer="container">
+  <rect class="frame b-box" x="312" y="315" width="396" height="437" rx="7" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
+  <text class="h" x="328" y="336" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">session container</text>
+  <text class="tag c-box" x="694" y="336" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#6648b8" font-weight="600" text-anchor="end">agentbox</text>
+  <text class="m" x="328" y="353" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">--cap-drop=ALL  no-new-privileges  --init</text>
+  <text class="m" x="328" y="369" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">2g, no swap · 1.5 CPU · 256 pids · --rm</text>
+  <text class="mu" x="328" y="386" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">stops: reaching other projects, exhausting the VM</text>
+</g>
+
+<!-- Claude Code + bubblewrap -->
+<g data-layer="claude">
+  <rect class="frame b-box" x="328" y="400" width="364" height="150" rx="6" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
+  <text class="h" x="344" y="422" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Claude Code</text>
+  <text class="sub" x="344" y="439" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">every command it runs goes under bubblewrap</text>
+  <text class="sub" x="344" y="460" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">managed settings, mounted read-only:</text>
+  <text class="m" x="344" y="477" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">• strict sandbox, no unsandboxed commands</text>
+  <text class="m" x="344" y="493" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">• network allowlist, managed domains only</text>
+  <text class="m" x="344" y="509" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">• no Read/Edit on the login or settings</text>
+  <text class="mu" x="344" y="532" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">stops: commands reading the login or leaving the list</text>
+</g>
+
+<!-- mounts -->
+<g data-layer="mounts">
+  <text class="lab" x="328" y="578" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#5a6575" font-weight="600" letter-spacing=".08em">THE ONLY HOST PATHS MOUNTED IN</text>
+  <text class="m" x="328" y="600" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">/work</text>
+  <text class="m sub" x="500" y="600" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#5a6575">← ~agent/projects/&lt;p&gt;</text>
+  <text class="m c-ok" x="692" y="600" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#1f7f45">rw</text>
+  <line class="sep" x1="328" y1="607" x2="692" y2="607" stroke="#6648b8" stroke-opacity=".35" stroke-width="1"/>
+  <text class="m" x="328" y="622" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">/home/dev/.claude</text>
+  <text class="m sub" x="500" y="622" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#5a6575">← ~agent/.agentbox/&lt;p&gt;</text>
+  <text class="m c-ok" x="692" y="622" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#1f7f45">rw</text>
+  <line class="sep" x1="328" y1="629" x2="692" y2="629" stroke="#6648b8" stroke-opacity=".35" stroke-width="1"/>
+  <text class="m" x="328" y="644" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">managed-settings.json</text>
+  <text class="m sub" x="500" y="644" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#5a6575">← /etc/agentbox/</text>
+  <text class="m c-egr" x="692" y="644" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#b8650f">ro</text>
+  <line class="sep" x1="328" y1="651" x2="692" y2="651" stroke="#6648b8" stroke-opacity=".35" stroke-width="1"/>
+  <text class="m c-tok" x="328" y="666" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#94750a">/run/agentbox/git</text>
+  <text class="m c-tok" x="500" y="666" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#94750a">← token dirs</text>
+  <text class="m c-egr" x="692" y="666" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#b8650f">ro</text>
+  <text class="mu" x="328" y="692" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">never $HOME, never ~/.ssh, never the whole projects/ tree</text>
+  <text class="sub small" x="328" y="714" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">image localhost/agentbox:&lt;tag&gt;, from a root-owned recipe</text>
+  <text class="sub small" x="328" y="730" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">nothing outlives --rm but /work and the login</text>
+</g>
+
+<!-- nftables -->
+<g data-layer="nft">
+  <rect class="frame b-egr" x="770" y="300" width="260" height="110" rx="7" stroke-width="1.6" fill="#ede6df" stroke="#b8650f"/>
+  <text class="h" x="786" y="322" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">nftables</text>
+  <text class="tag c-egr" x="1016" y="322" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#b8650f" font-weight="600" text-anchor="end">egress_proxy</text>
+  <text class="sub" x="786" y="339" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">owner match on uid agent</text>
+  <text class="m" x="786" y="358" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">→ 192.168.56.20:3128</text>
+  <text class="m c-ok" x="1016" y="358" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#1f7f45">accept</text>
+  <text class="m" x="786" y="375" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">→ anything else</text>
+  <text class="m c-no" x="1016" y="375" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#c23a2f">reject</text>
+  <text class="mu" x="786" y="396" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">no loopback exception, no DNS</text>
+</g>
+
+<!-- Squid -->
+<g data-layer="squid">
+  <rect class="frame b-egr" x="770" y="450" width="260" height="140" rx="7" stroke-width="1.6" fill="#ede6df" stroke="#b8650f"/>
+  <text class="h" x="786" y="472" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Squid</text>
+  <text class="tag c-egr" x="1016" y="472" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#b8650f" font-weight="600" text-anchor="end">egress_proxy</text>
+  <text class="sub" x="786" y="489" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">on the host-only address, port 3128</text>
+  <text class="m" x="786" y="509" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">allow  dstdomain -n allowlist</text>
+  <text class="m" x="786" y="526" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">deny   all</text>
+  <text class="m c-no" x="1016" y="526" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#c23a2f">403</text>
+  <text class="sub" x="786" y="550" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">filters CONNECT by host, no TLS MITM</text>
+  <text class="sub" x="786" y="567" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">access.log records every request</text>
+</g>
+
+<!-- account ansible -->
+<g data-layer="ansible">
+  <rect class="frame b-mu" x="770" y="640" width="260" height="120" rx="7" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
+  <text class="h" x="786" y="662" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">account ansible</text>
+  <text class="tag c-mu" x="1016" y="662" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#5a6575" font-weight="600" text-anchor="end">cloud-init</text>
+  <text class="sub" x="786" y="680" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">passwordless sudo; Ansible logs in here</text>
+  <text class="sub" x="786" y="697" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">egress unrestricted: apt, upgrades</text>
+  <text class="sub" x="786" y="714" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">never runs podman</text>
+  <text class="mu" x="786" y="740" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">why the sandbox has its own account</text>
+</g>
+
+<!-- internet -->
+<g data-layer="internet">
+  <text class="h" x="1190" y="128" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Internet</text>
+  <rect class="frame b-no" x="1110" y="300" width="160" height="150" rx="7" stroke-width="1.6" fill="#efe4e6" stroke="#c23a2f" stroke-dasharray="5 3"/>
+  <text class="h" x="1124" y="322" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">every other host</text>
+  <text class="sub" x="1124" y="339" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">never reached</text>
+  <text class="m" x="1124" y="362" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">example.com</text>
+  <text class="m" x="1124" y="379" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">1.1.1.1:443</text>
+  <text class="m" x="1124" y="396" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">DNS, SMTP, SSH</text>
+  <text class="mu" x="1124" y="430" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">Squid 403 or nft reject</text>
+  <rect class="frame b-ok" x="1110" y="480" width="160" height="200" rx="7" stroke-width="1.6" fill="#dce9e5" stroke="#1f7f45"/>
+  <text class="h" x="1124" y="502" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">allowlist</text>
+  <text class="sub" x="1124" y="518" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">example policy</text>
+  <text class="m" x="1124" y="540" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">.anthropic.com</text>
+  <text class="m" x="1124" y="557" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">platform.claude.com</text>
+  <text class="m" x="1124" y="574" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">.github.com</text>
+  <text class="m" x="1124" y="591" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">.npmjs.org</text>
+  <text class="m" x="1124" y="608" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">.pypi.org</text>
+  <text class="m" x="1124" y="625" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">.debian.org</text>
+  <text class="m" x="1124" y="642" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">.docker.io  …</text>
+  <text class="mu" x="1124" y="668" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">hosts, not content</text>
+</g>
+
+<!-- paths -->
+<polyline class="l-ok" points="692,470 755,470 755,355 767,355" marker-end="url(#ah-ok)" fill="none" stroke="#1f7f45" stroke-width="2.2"/>
+<text class="sub small" transform="translate(767 412) rotate(-90)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">via proxy, as uid agent</text>
+<line class="l-ok" x1="900" y1="410" x2="900" y2="447" marker-end="url(#ah-ok)" fill="none" stroke="#1f7f45" stroke-width="2.2"/>
+<text class="sub small" x="908" y="433" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">accept</text>
+<line class="l-ok" x1="1030" y1="540" x2="1107" y2="540" marker-end="url(#ah-ok)" fill="none" stroke="#1f7f45" stroke-width="2.2"/>
+<rect class="frame b-vm chip" x="1034" y="529" width="32" height="22" rx="4" stroke-width="1.6" fill="#f4f6f9" stroke="#2f6fae"/>
+<text class="small c-vm" x="1050" y="544" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#2f6fae">NAT</text>
+<line class="l-no" x1="1030" y1="375" x2="1090" y2="375" fill="none" stroke="#c23a2f" stroke-width="1.8" stroke-dasharray="5 4"/>
+<line class="x" x1="1093" y1="370" x2="1103" y2="380" stroke="#c23a2f" stroke-width="2.6" stroke-linecap="round"/><line class="x" x1="1103" y1="370" x2="1093" y2="380" stroke="#c23a2f" stroke-width="2.6" stroke-linecap="round"/>
+<line class="l-no" x1="1030" y1="480" x2="1090" y2="444" fill="none" stroke="#c23a2f" stroke-width="1.8" stroke-dasharray="5 4"/>
+<line class="x" x1="1091" y1="436" x2="1101" y2="446" stroke="#c23a2f" stroke-width="2.6" stroke-linecap="round"/><line class="x" x1="1101" y1="436" x2="1091" y2="446" stroke="#c23a2f" stroke-width="2.6" stroke-linecap="round"/>
+
+<!-- SSH -->
+<polyline class="l-mu" points="122,760 122,815 900,815 900,808" marker-end="url(#ah-mu)" fill="none" stroke="#5a6575" stroke-width="1.4"/>
+<text class="sub small" x="500" y="828" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">SSH, as ansible</text>
+<rect class="frame b-vm chip" x="850" y="785" width="100" height="20" rx="4" stroke-width="1.6" fill="#f4f6f9" stroke="#2f6fae"/>
+<text class="small c-vm" x="900" y="799" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#2f6fae">host-only NIC</text>
+<line class="l-mu" x1="900" y1="785" x2="900" y2="763" marker-end="url(#ah-mu)" fill="none" stroke="#5a6575" stroke-width="1.4"/>
+
+<g id="sim"></g>
+</svg>
