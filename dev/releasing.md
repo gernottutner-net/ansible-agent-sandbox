@@ -1,8 +1,9 @@
 # Releasing
 
 When this collection gets a new version, which number it gets, and how a
-release is made: the tag, the push and the GitHub release. Users install
-from Git and pin a tag, so the tag is the release.
+release is made: the tag, the push, the GitHub release and the
+announcement. Users install from Git and pin a tag, so the tag is the
+release.
 
 ---
 
@@ -12,6 +13,7 @@ from Git and pin a tag, so the tag is the release.
 - [Which version](#which-version)
 - [How to release](#how-to-release)
 - [GitHub releases](#github-releases)
+- [Announcing](#announcing)
 
 ---
 
@@ -62,6 +64,8 @@ or insecure are released at once.
    bare version in all three places.
 6. `main` and the tag pushed.
 7. The GitHub release created from the tag the same day (below).
+8. The release announced on Mastodon and X, by hand, once the GitHub
+   release is up ([Announcing](#announcing)).
 
 ## GitHub releases
 
@@ -80,3 +84,36 @@ or insecure are released at once.
 - **"Set as the latest release"** for every regular release.
 - **No build artefacts attached.** The collection is installed from Git; a
   `tar.gz` would be a second way in that nobody uses.
+
+## Announcing
+
+- **By hand, from the template below.** At a release every few weeks a
+  post takes two minutes and can say what is interesting about this one;
+  an automated "vX.Y.Z released" cannot. Automation waits until there is a
+  reason for it.
+- **What changed first, the version second.** One or two concrete points a
+  user would care about, from the release notes.
+- **Link the GitHub release**, `…/releases/tag/vX.Y.Z`. Check the preview
+  card the first time: if it is GitHub's generic release card instead of
+  the social preview banner, link the repository and name the tag in the
+  text.
+- **Mastodon: hashtags.** With no algorithm, they are how a post is found.
+  CamelCase, so screen readers say them right.
+- **X: the link in the first reply**, not in the post, which is widely
+  reported to get less reach with an outside link.
+- **The banner as an image, with alt text**, where the link card is weak:
+  `docs/images/README_banner.png`, and its alt text from the README.
+
+```text
+sacVB vX.Y.Z — <name>: <the headline change, in one line>.
+
+- <point 1>
+- <point 2>
+
+https://github.com/gernottutner-net/ansible-agent-sandbox/releases/tag/vX.Y.Z
+
+#Ansible #VirtualBox #Podman #ClaudeCode #AgenticCoding
+```
+
+Without a release name, `sacVB vX.Y.Z:`. On X the URL line moves to the
+first reply.
