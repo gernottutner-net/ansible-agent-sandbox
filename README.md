@@ -30,6 +30,7 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
 - [Create the VM and the sandbox](#create-the-vm-and-the-sandbox)
 - [Check the sandbox](#check-the-sandbox)
 - [Snapshots and teardown](#snapshots-and-teardown)
+- [Starting and stopping the VM](#starting-and-stopping-the-vm)
 - [Sessions](#sessions)
   - [The launcher](#the-launcher)
   - [Autonomous mode](#autonomous-mode)
@@ -211,6 +212,38 @@ saved. `take` and `restore` restart a VM that was running, and return once
 it answers over SSH again. `destroy` deletes the VM with all its disks and
 snapshots. With more than one VM, add `--limit <vm>`. Details in
 [docs/virtualbox.md](docs/virtualbox.md#snapshots).
+
+## Starting and stopping the VM
+
+The VM does not start with the VirtualBox host: after a reboot of the
+host, it is off. Start it with `provision` again:
+
+```bash
+ansible-playbook tutner.agent_sandbox.provision
+```
+
+For a VM that exists, it skips the creation, starts it headless if it is
+off, and returns once the guest answers over SSH and cloud-init reports
+done. Its preflight and image check run too, so it needs the network for
+Debian's `SHA512SUMS`; the cached image is not downloaded again.
+
+Or with VirtualBox directly, then wait for the guest; the VM's name is its
+inventory name, unless `vm_name` sets another:
+
+```bash
+VBoxManage startvm sandbox-vm --type headless
+ansible-playbook tutner.agent_sandbox.wait
+```
+
+To stop it, shut the guest down cleanly, through its ACPI power button:
+
+```bash
+VBoxManage controlvm sandbox-vm acpipowerbutton
+VBoxManage list runningvms                         # gone once it is off
+```
+
+A shutdown or reboot of the guest clears every `session`
+[repository token](#repository-tokens), which is kept on tmpfs.
 
 ## Sessions
 

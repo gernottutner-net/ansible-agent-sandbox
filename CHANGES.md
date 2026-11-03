@@ -5,6 +5,12 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-03
+
+#### Added
+
+- README: new section "Starting and stopping the VM", listed in the table of contents. The VM does not start with the host; `provision` starts an existing VM that is off and waits for it, and needs the network for Debian's `SHA512SUMS`; or `VBoxManage startvm --type headless` followed by the playbook `wait`. Stopping with `VBoxManage controlvm <vm> acpipowerbutton`, and that a shutdown clears every `session` token.
+
 ## [0.2.0] - 2026-11-03 — Repository Tokens
 
 ### 2026-11-03
