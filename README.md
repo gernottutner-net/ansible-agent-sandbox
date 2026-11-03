@@ -63,6 +63,10 @@ Every role checks what it set up before it finishes, so a run that passes
 has been observed denying, not only configured to. The layers they build,
 and why Debian 13 and rootless Podman rather than the host's own system or
 Docker, are in [docs/design.md, "The layers"](docs/design.md#the-layers).
+A [diagram](docs/images/architecture.svg) shows how they fit together.
+An [interactive version](https://claude.ai/artifact/4NNqLqhHufJfLtWW1r5ue6)
+explains each part when you click it, and sends a request through the
+layers to show which one stops it.
 
 ## Requirements
 
