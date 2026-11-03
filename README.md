@@ -456,13 +456,26 @@ The image holds a pinned Claude Code and never updates itself. Change both
 values and apply with `--tags agentbox`:
 
 ```yaml
-sandbox_image_tag: "0.3.0"                 # a new tag, never reuse one
+sandbox_image_tag: "0.2.0-cc2.x.y"         # a new tag, never reuse one
 agentbox_claude_code_version: "2.x.y"
 ```
 
 The role refuses to rebuild an existing tag from a changed recipe, so a
 forgotten tag bump fails loudly. Going back: set both values back; the old
-image is still there. A [diagram](docs/images/claude-code-image.svg) shows
+image is still there.
+
+The role only checks whether a tag is new; it never compares tags by
+order, so the tag is a name, not a version the role reads. A tag that
+starts with the collection's default tag and adds `-cc` and the Claude
+Code version is recommended:
+
+- `podman images`, run as `agent`, shows which Claude Code each old image
+  holds, which is what you look for when going back.
+- It cannot be confused with a later default of the collection, which
+  names its own tags `X.Y.Z`.
+- After a collection upgrade that changes the image, move the prefix
+  along, as in `0.3.0-cc2.x.y`.
+- Use `-`, not semver's `+`: image tags do not allow `+`. A [diagram](docs/images/claude-code-image.svg) shows
 how Claude Code gets into the image and into a session, and how an update
 replaces it.
 

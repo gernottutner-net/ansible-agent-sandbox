@@ -195,15 +195,15 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:
   <rect class="frame b-mu" x="20" y="918" width="290" height="92" rx="7"/>
   <text class="h" x="36" y="940">1 · Bump both values</text>
   <text class="ms" x="36" y="960">agentbox_claude_code_version: "2.x.y"</text>
-  <text class="ms" x="36" y="976">sandbox_image_tag: "0.3.0"</text>
+  <text class="ms" x="36" y="976">sandbox_image_tag: "0.2.0-cc2.x.y"</text>
   <text class="mu" x="36" y="996">a new tag, never a reused one</text>
   <rect class="frame b-mu" x="340" y="918" width="290" height="92" rx="7"/>
   <text class="h" x="356" y="940">2 · Run the role</text>
   <text class="ms" x="356" y="960">playbook sandbox --tags agentbox</text>
-  <text class="sub" x="356" y="978">0.3.0 is not in storage: build it</text>
+  <text class="sub" x="356" y="978">0.2.0-cc2.x.y is not in storage: build it</text>
   <text class="sub" x="356" y="995">and check the new version</text>
   <rect class="frame b-mu" x="660" y="918" width="290" height="92" rx="7"/>
-  <text class="h" x="676" y="940">3 · Launcher names 0.3.0</text>
+  <text class="h" x="676" y="940">3 · Launcher names 0.2.0-cc2.x.y</text>
   <text class="sub" x="676" y="960">re-rendered with the new tag</text>
   <text class="sub" x="676" y="977">0.2.0 stays in storage</text>
   <text class="sub" x="676" y="994">a running session keeps its image</text>

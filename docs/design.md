@@ -377,6 +377,14 @@ open; without one, both are rejected.
   Claude Code therefore means bumping `agentbox_claude_code_version` and
   `sandbox_image_tag` together. Old tags stay in `agent`'s storage, so
   going back is setting the tag back.
+- **A tag is a name, not a version.** The role compares tags for
+  equality only, never by order. The collection's own default follows
+  the collection version of the release that last changed the image
+  (`0.1.0`, `0.2.0`). For an update in the inventory, the README
+  recommends that default plus `-cc<Claude Code version>`, such as
+  `0.2.0-cc2.1.290`. That name shows which Claude Code an old image
+  holds, and it cannot be confused with a later default of the
+  collection. It uses `-` because OCI tags do not allow semver's `+`.
 - **Two directories.** `~agent/projects/` and `~agent/.agentbox/`, both
   mode `0700`, the only directories whose subdirectories are ever mounted
   in: the project, and Claude Code's login and state for that project.
