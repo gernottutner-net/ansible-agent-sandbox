@@ -101,6 +101,11 @@ or insecure are released at once.
   CamelCase, so screen readers say them right.
 - **X: the link in the first reply**, not in the post, which is widely
   reported to get less reach with an outside link.
+- **X: 280 characters**, a link counts as 23. The release name alone can
+  take 50, so on X the points become short sentences instead of bullets.
+- **X: two or three hashtags**, such as
+  `#Ansible #VirtualBox #ClaudeCode`; more look like spam there. Mastodon
+  gets the full set.
 - **The banner as an image, with alt text**, where the link card is weak:
   `docs/images/README_banner.png`, and its alt text from the README.
 
@@ -116,4 +121,4 @@ https://github.com/gernottutner-net/ansible-agent-sandbox/releases/tag/vX.Y.Z
 ```
 
 Without a release name, `sacVB vX.Y.Z:`. On X the URL line moves to the
-first reply.
+first reply, and the hashtags shrink to two or three.
