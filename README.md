@@ -462,7 +462,9 @@ agentbox_claude_code_version: "2.x.y"
 
 The role refuses to rebuild an existing tag from a changed recipe, so a
 forgotten tag bump fails loudly. Going back: set both values back; the old
-image is still there.
+image is still there. A [diagram](docs/images/claude-code-image.svg) shows
+how Claude Code gets into the image and into a session, and how an update
+replaces it.
 
 ## What it protects, and what not
 

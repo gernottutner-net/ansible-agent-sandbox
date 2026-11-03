@@ -409,6 +409,11 @@ open; without one, both are rejected.
   pinned version, `id -u` is 1000, and git's system-wide credential helper
   is `agentbox`.
 
+How Claude Code gets into the image and into a session, and how an update
+replaces it, with the example policy's tag and version:
+
+![The inventory pins sandbox_image_tag and agentbox_claude_code_version. The agentbox role renders the Containerfile and the credential helper into root-owned /etc/agentbox/ and hashes them. If the tag is not in agent's image storage, it is built rootless as agent, every step through Squid: debian:trixie-slim from docker.io, apt packages from .debian.org, Node from deb.nodesource.com, and Claude Code from .npmjs.org, installed as root under /usr with DISABLE_AUTOUPDATER=1. A tag with the same hash is kept; one with another hash fails the run. The role checks the image once, renders the tag into the launcher, which runs it with --pull=never. Updating: bump both values, run the role with --tags agentbox, the new tag is built beside the old one and the launcher names it; the next session runs it with the same login. Going back is setting both values back.](images/claude-code-image.svg)
+
 ---
 
 ## The policy surface

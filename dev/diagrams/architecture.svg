@@ -1,0 +1,244 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1290 850" width="1290" height="850" role="img" aria-label="How tutner.agent_sandbox contains a session: Claude Code under bubblewrap, inside a rootless Podman container, run by the unprivileged account agent, inside a disposable Debian VM on VirtualBox. All traffic must pass an nftables owner rule and the Squid allowlist; everything else is rejected.">
+<style>
+svg{--bg:#f4f6f9;--fg:#18212c;--mu:#5a6575;--vm:#2f6fae;--pod:#13806f;--box:#6648b8;--egr:#b8650f;--tok:#94750a;--ok:#1f7f45;--no:#c23a2f}
+@media (prefers-color-scheme: dark){svg{--bg:#0f141b;--fg:#e3e8ef;--mu:#95a2b4;--vm:#6aa8e0;--pod:#3cc4b3;--box:#a990ec;--egr:#f0a35a;--tok:#e0c048;--ok:#5cc77a;--no:#f07066}}
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:12px;fill:var(--fg)}
+.bg{fill:var(--bg)}
+.ti{font-size:20px;font-weight:700}
+.h{font-size:14px;font-weight:650}
+.m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+.ms{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px}
+.mu{fill:var(--mu);font-size:11px;font-style:italic}
+.sub{fill:var(--mu)}
+.lab{fill:var(--mu);font-size:10.5px;font-weight:650;letter-spacing:.08em}
+.tag{font-size:10.5px;font-weight:650;text-anchor:end}
+.small{font-size:10px}
+.bold{font-weight:650}
+.frame{stroke-width:1.6}
+.b-vm{fill:var(--vm);fill-opacity:.05;stroke:var(--vm)}
+.b-pod{fill:var(--pod);fill-opacity:.06;stroke:var(--pod)}
+.b-box{fill:var(--box);fill-opacity:.07;stroke:var(--box)}
+.b-egr{fill:var(--egr);fill-opacity:.07;stroke:var(--egr)}
+.b-mu{fill:var(--mu);fill-opacity:.05;stroke:var(--mu)}
+.b-ok{fill:var(--ok);fill-opacity:.07;stroke:var(--ok)}
+.c-vm{fill:var(--vm)}.c-pod{fill:var(--pod)}.c-box{fill:var(--box)}.c-egr{fill:var(--egr)}.c-ok{fill:var(--ok)}.c-no{fill:var(--no)}.c-mu{fill:var(--mu)}
+.l-ok{fill:none;stroke:var(--ok);stroke-width:2.2}
+.l-mu{fill:none;stroke:var(--mu);stroke-width:1.4}
+.l-box{fill:none;stroke:var(--box);stroke-width:1.8}
+.sep{stroke:var(--box);stroke-opacity:.35;stroke-width:1}
+.b-host{fill:none;stroke:var(--mu);stroke-dasharray:6 4;stroke-width:1.2}
+.b-tok{fill:var(--tok);fill-opacity:.08;stroke:var(--tok)}
+.b-no{fill:var(--no);fill-opacity:.06;stroke:var(--no);stroke-dasharray:5 3}
+.s-vm{fill:var(--vm)}.s-pod{fill:var(--pod)}.s-box{fill:var(--box)}.s-egr{fill:var(--egr)}.s-tok{fill:var(--tok)}
+.l-no{fill:none;stroke:var(--no);stroke-width:1.8;stroke-dasharray:5 4}
+.x{stroke:var(--no);stroke-width:2.6;stroke-linecap:round}
+.c-tok{fill:var(--tok)}
+.chip{fill:var(--bg)}
+</style>
+<defs>
+  <marker id="ah-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="c-ok"/></marker>
+  <marker id="ah-mu" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="c-mu"/></marker>
+  <marker id="ah-no" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="c-no"/></marker>
+</defs>
+
+<rect class="bg" x="0" y="0" width="1290" height="850"/>
+
+<text class="ti" x="20" y="38">How a session is contained</text>
+<text class="sub" x="20" y="58">tutner.agent_sandbox: five layers, each assuming the one inside it can fail</text>
+
+<!-- Controller -->
+<g data-layer="controller">
+  <rect class="frame b-mu" x="20" y="70" width="205" height="690" rx="8"/>
+  <text class="h" x="36" y="94">Controller</text>
+  <text class="sub" x="36" y="111">where you run Ansible</text>
+  <text class="lab" x="36" y="142">PLAYBOOK SANDBOX</text>
+  <rect class="s-vm" x="36" y="153" width="12" height="12" rx="2"/>
+  <text class="m" x="56" y="163">1 virtualbox_vm</text>
+  <text class="sub small" x="56" y="178">VM, NICs, snapshots (host)</text>
+  <rect class="s-pod" x="36" y="193" width="12" height="12" rx="2"/>
+  <text class="m" x="56" y="203">2 podman</text>
+  <text class="sub small" x="56" y="218">account agent, Podman</text>
+  <rect class="s-egr" x="36" y="233" width="12" height="12" rx="2"/>
+  <text class="m" x="56" y="243">3 egress_proxy</text>
+  <text class="sub small" x="56" y="258">Squid, nftables</text>
+  <rect class="s-box" x="36" y="273" width="12" height="12" rx="2"/>
+  <text class="m" x="56" y="283">4 agentbox</text>
+  <text class="sub small" x="56" y="298">image, settings, launcher</text>
+  <text class="lab" x="36" y="336">PLAYBOOK GIT_TOKEN</text>
+  <rect class="s-tok" x="36" y="347" width="12" height="12" rx="2"/>
+  <text class="m" x="56" y="357">git_token</text>
+  <text class="sub small" x="56" y="372">git credential fill, per project</text>
+  <text class="lab" x="36" y="410">POLICY</text>
+  <text class="m" x="36" y="430">group_vars/</text>
+  <text class="m" x="36" y="446">agent_sandbox.yml</text>
+  <text class="sub small" x="36" y="464">allowlist, limits, image tag</text>
+  <text class="lab" x="36" y="506">READING THE DRAWING</text>
+  <text class="sub small" x="36" y="525">outline colour: the role</text>
+  <text class="sub small" x="36" y="539">that builds the part</text>
+  <line class="l-ok" x1="36" y1="560" x2="70" y2="560" marker-end="url(#ah-ok)"/>
+  <text class="sub small" x="80" y="564">allowed path</text>
+  <line class="l-no" x1="36" y1="582" x2="66" y2="582"/>
+  <line class="x" x1="68" y1="577" x2="78" y2="587"/><line class="x" x1="78" y1="577" x2="68" y2="587"/>
+  <text class="sub small" x="88" y="586">blocked</text>
+  <text class="sub small" x="36" y="740">each role ends by checking</text>
+  <text class="sub small" x="36" y="753">what it set up</text>
+</g>
+
+<!-- VirtualBox host -->
+<rect class="b-host" x="245" y="70" width="835" height="765" rx="10"/>
+<text class="h" x="261" y="92">VirtualBox host</text>
+
+<!-- VM -->
+<g data-layer="vm">
+  <rect class="frame b-vm" x="265" y="105" width="785" height="690" rx="9"/>
+  <text class="h" x="281" y="128">Debian 13 VM</text>
+  <text class="tag c-vm" x="1036" y="128">virtualbox_vm</text>
+  <text class="sub" x="281" y="145">disposable, snapshotted: baseline + one rolling slot</text>
+  <text class="mu" x="281" y="162">stops: a kernel exploit from a container reaching the host</text>
+</g>
+
+<!-- account agent -->
+<g data-layer="account">
+  <rect class="frame b-pod" x="280" y="178" width="460" height="602" rx="8"/>
+  <text class="h" x="296" y="200">account agent</text>
+  <text class="tag c-pod" x="726" y="200">podman</text>
+  <text class="sub" x="296" y="217">no sudo · own subuid range 200000+ · lingering</text>
+  <text class="mu" x="296" y="234">stops: an escape landing as root or as ansible</text>
+  <text class="m c-box" x="296" y="254">$ sudo -iu agent agentbox &lt;project&gt;</text>
+</g>
+
+<!-- Podman -->
+<g data-layer="podman">
+  <rect class="frame b-pod" x="296" y="266" width="428" height="500" rx="7"/>
+  <text class="h" x="312" y="287">rootless Podman 5</text>
+  <text class="tag c-pod" x="710" y="287">podman</text>
+  <text class="sub" x="312" y="303">crun · pasta network · systemd cgroup v2</text>
+</g>
+
+<!-- session container -->
+<g data-layer="container">
+  <rect class="frame b-box" x="312" y="315" width="396" height="437" rx="7"/>
+  <text class="h" x="328" y="336">session container</text>
+  <text class="tag c-box" x="694" y="336">agentbox</text>
+  <text class="m" x="328" y="353">--cap-drop=ALL  no-new-privileges  --init</text>
+  <text class="m" x="328" y="369">2g, no swap · 1.5 CPU · 256 pids · --rm</text>
+  <text class="mu" x="328" y="386">stops: reaching other projects, exhausting the VM</text>
+</g>
+
+<!-- Claude Code + bubblewrap -->
+<g data-layer="claude">
+  <rect class="frame b-box" x="328" y="400" width="364" height="150" rx="6"/>
+  <text class="h" x="344" y="422">Claude Code</text>
+  <text class="sub" x="344" y="439">every command it runs goes under bubblewrap</text>
+  <text class="sub" x="344" y="460">managed settings, mounted read-only:</text>
+  <text class="m" x="344" y="477">• strict sandbox, no unsandboxed commands</text>
+  <text class="m" x="344" y="493">• network allowlist, managed domains only</text>
+  <text class="m" x="344" y="509">• no Read/Edit on the login or settings</text>
+  <text class="mu" x="344" y="532">stops: commands reading the login or leaving the list</text>
+</g>
+
+<!-- mounts -->
+<g data-layer="mounts">
+  <text class="lab" x="328" y="578">THE ONLY HOST PATHS MOUNTED IN</text>
+  <text class="m" x="328" y="600">/work</text>
+  <text class="m sub" x="500" y="600">← ~agent/projects/&lt;p&gt;</text>
+  <text class="m c-ok" x="692" y="600" text-anchor="end">rw</text>
+  <line class="sep" x1="328" y1="607" x2="692" y2="607"/>
+  <text class="m" x="328" y="622">/home/dev/.claude</text>
+  <text class="m sub" x="500" y="622">← ~agent/.agentbox/&lt;p&gt;</text>
+  <text class="m c-ok" x="692" y="622" text-anchor="end">rw</text>
+  <line class="sep" x1="328" y1="629" x2="692" y2="629"/>
+  <text class="m" x="328" y="644">managed-settings.json</text>
+  <text class="m sub" x="500" y="644">← /etc/agentbox/</text>
+  <text class="m c-egr" x="692" y="644" text-anchor="end">ro</text>
+  <line class="sep" x1="328" y1="651" x2="692" y2="651"/>
+  <text class="m c-tok" x="328" y="666">/run/agentbox/git</text>
+  <text class="m c-tok" x="500" y="666">← token dirs</text>
+  <text class="m c-egr" x="692" y="666" text-anchor="end">ro</text>
+  <text class="mu" x="328" y="692">never $HOME, never ~/.ssh, never the whole projects/ tree</text>
+  <text class="sub small" x="328" y="714">image localhost/agentbox:&lt;tag&gt;, from a root-owned recipe</text>
+  <text class="sub small" x="328" y="730">nothing outlives --rm but /work and the login</text>
+</g>
+
+<!-- nftables -->
+<g data-layer="nft">
+  <rect class="frame b-egr" x="770" y="300" width="260" height="110" rx="7"/>
+  <text class="h" x="786" y="322">nftables</text>
+  <text class="tag c-egr" x="1016" y="322">egress_proxy</text>
+  <text class="sub" x="786" y="339">owner match on uid agent</text>
+  <text class="m" x="786" y="358">→ 192.168.56.20:3128</text>
+  <text class="m c-ok" x="1016" y="358" text-anchor="end">accept</text>
+  <text class="m" x="786" y="375">→ anything else</text>
+  <text class="m c-no" x="1016" y="375" text-anchor="end">reject</text>
+  <text class="mu" x="786" y="396">no loopback exception, no DNS</text>
+</g>
+
+<!-- Squid -->
+<g data-layer="squid">
+  <rect class="frame b-egr" x="770" y="450" width="260" height="140" rx="7"/>
+  <text class="h" x="786" y="472">Squid</text>
+  <text class="tag c-egr" x="1016" y="472">egress_proxy</text>
+  <text class="sub" x="786" y="489">on the host-only address, port 3128</text>
+  <text class="m" x="786" y="509">allow  dstdomain -n allowlist</text>
+  <text class="m" x="786" y="526">deny   all</text>
+  <text class="m c-no" x="1016" y="526" text-anchor="end">403</text>
+  <text class="sub" x="786" y="550">filters CONNECT by host, no TLS MITM</text>
+  <text class="sub" x="786" y="567">access.log records every request</text>
+</g>
+
+<!-- account ansible -->
+<g data-layer="ansible">
+  <rect class="frame b-mu" x="770" y="640" width="260" height="120" rx="7"/>
+  <text class="h" x="786" y="662">account ansible</text>
+  <text class="tag c-mu" x="1016" y="662">cloud-init</text>
+  <text class="sub" x="786" y="680">passwordless sudo; Ansible logs in here</text>
+  <text class="sub" x="786" y="697">egress unrestricted: apt, upgrades</text>
+  <text class="sub" x="786" y="714">never runs podman</text>
+  <text class="mu" x="786" y="740">why the sandbox has its own account</text>
+</g>
+
+<!-- internet -->
+<g data-layer="internet">
+  <text class="h" x="1190" y="128" text-anchor="middle">Internet</text>
+  <rect class="frame b-no" x="1110" y="300" width="160" height="150" rx="7"/>
+  <text class="h" x="1124" y="322">every other host</text>
+  <text class="sub" x="1124" y="339">never reached</text>
+  <text class="m" x="1124" y="362">example.com</text>
+  <text class="m" x="1124" y="379">1.1.1.1:443</text>
+  <text class="m" x="1124" y="396">DNS, SMTP, SSH</text>
+  <text class="mu" x="1124" y="430">Squid 403 or nft reject</text>
+  <rect class="frame b-ok" x="1110" y="480" width="160" height="200" rx="7"/>
+  <text class="h" x="1124" y="502">allowlist</text>
+  <text class="sub" x="1124" y="518">example policy</text>
+  <text class="m" x="1124" y="540">.anthropic.com</text>
+  <text class="m" x="1124" y="557">platform.claude.com</text>
+  <text class="m" x="1124" y="574">.github.com</text>
+  <text class="m" x="1124" y="591">.npmjs.org</text>
+  <text class="m" x="1124" y="608">.pypi.org</text>
+  <text class="m" x="1124" y="625">.debian.org</text>
+  <text class="m" x="1124" y="642">.docker.io  …</text>
+  <text class="mu" x="1124" y="668">hosts, not content</text>
+</g>
+
+<!-- paths -->
+<polyline class="l-ok" points="692,470 755,470 755,355 767,355" marker-end="url(#ah-ok)"/>
+<text class="sub small" transform="translate(767 412) rotate(-90)" text-anchor="middle">via proxy, as uid agent</text>
+<line class="l-ok" x1="900" y1="410" x2="900" y2="447" marker-end="url(#ah-ok)"/>
+<text class="sub small" x="908" y="433">accept</text>
+<line class="l-ok" x1="1030" y1="540" x2="1107" y2="540" marker-end="url(#ah-ok)"/>
+<rect class="frame b-vm chip" x="1034" y="529" width="32" height="22" rx="4"/>
+<text class="small c-vm" x="1050" y="544" text-anchor="middle">NAT</text>
+<line class="l-no" x1="1030" y1="375" x2="1090" y2="375"/>
+<line class="x" x1="1093" y1="370" x2="1103" y2="380"/><line class="x" x1="1103" y1="370" x2="1093" y2="380"/>
+<line class="l-no" x1="1030" y1="480" x2="1090" y2="444"/>
+<line class="x" x1="1091" y1="436" x2="1101" y2="446"/><line class="x" x1="1101" y1="436" x2="1091" y2="446"/>
+
+<!-- SSH -->
+<polyline class="l-mu" points="122,760 122,815 900,815 900,808" marker-end="url(#ah-mu)"/>
+<text class="sub small" x="500" y="828" text-anchor="middle">SSH, as ansible</text>
+<rect class="frame b-vm chip" x="850" y="785" width="100" height="20" rx="4"/>
+<text class="small c-vm" x="900" y="799" text-anchor="middle">host-only NIC</text>
+<line class="l-mu" x1="900" y1="785" x2="900" y2="763" marker-end="url(#ah-mu)"/>
+
+<g id="sim"></g>
+</svg>

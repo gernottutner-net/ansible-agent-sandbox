@@ -1,27 +1,50 @@
 # Diagrams
 
 How the diagrams in `docs/images/` are made and how to change them
-without breaking them in some viewers. For now there is one,
-`docs/images/architecture.svg`, shown in `docs/design.md` under
-"Why this stack".
+without breaking them in some viewers. There are two, both shown in
+`docs/design.md`:
+
+- `docs/images/architecture.svg`, under "Why this stack": how a session is
+  contained.
+- `docs/images/claude-code-image.svg`, under "`agentbox`: image, managed
+  settings and launcher": how Claude Code gets into the image and into a
+  session, and how an update replaces it.
 
 ---
 
 ## Contents
 
-- [Why the file looks the way it does](#why-the-file-looks-the-way-it-does)
-- [The rules](#the-rules)
+- [Source and published file](#source-and-published-file)
+- [Why the published file is flattened](#why-the-published-file-is-flattened)
+- [The rules for a source](#the-rules-for-a-source)
 - [The palette](#the-palette)
 - [The layout grid](#the-layout-grid)
-- [Changing the diagram](#changing-the-diagram)
+  - [architecture.svg](#architecturesvg)
+  - [claude-code-image.svg](#claude-code-imagesvg)
+- [Changing a diagram](#changing-a-diagram)
 - [Checking it](#checking-it)
 
 ---
 
-## Why the file looks the way it does
+## Source and published file
 
-The SVG is written by hand: no drawing tool, no build step, nothing to
-install. It has to render in three kinds of places:
+Each diagram exists twice, under the same name:
+
+| | Where | Written by |
+|---|---|---|
+| Source | `dev/diagrams/<name>.svg` | hand: classes and CSS custom properties, readable and easy to change |
+| Published | `docs/images/<name>.svg` | `dev/flatten-svg.py`, from the source; never edited by hand |
+
+```bash
+dev/flatten-svg.py dev/diagrams/<name>.svg docs/images/<name>.svg
+```
+
+The script needs Python 3 and nothing else. No drawing tool, nothing to
+install. Both files are committed together.
+
+## Why the published file is flattened
+
+A diagram has to render in three kinds of places:
 
 - **GitHub and browsers**, as an `<img>`. Full CSS, including
   `prefers-color-scheme`.
@@ -29,44 +52,52 @@ install. It has to render in three kinds of places:
   They do not support CSS custom properties: a first version that
   coloured everything with `var(--…)` showed as a black rectangle.
 - **ImageMagick's built-in renderer**, the weakest: no multi-class
-  selectors and no `fill-opacity`.
+  selectors, no `fill-opacity`, and no `<tspan>` layout.
 
-So the light colours are written as attributes on every element, which
-every renderer reads, and CSS is used only for the dark variant. A viewer
-that ignores the CSS shows the light version.
+So the script makes the published file safe for all three:
 
-## The rules
+- **Colours become attributes.** Every shape and text gets its light
+  `fill`, `stroke`, font and size as presentation attributes, which every
+  renderer reads.
+- **No transparency.** Each `fill-opacity` tint becomes a solid colour,
+  the tint blended over the background.
+- **CSS holds only the dark override.** The `<style>` block keeps a single
+  `@media (prefers-color-scheme: dark)` block that sets only `fill` and
+  `stroke`. CSS beats presentation attributes, so a font set there would
+  override the monospace attributes. A viewer that ignores the CSS shows
+  the light version.
+- **Single quotes inside attributes**, so `'Segoe UI'` does not end the
+  attribute value.
 
-- **Colours are attributes.** Every shape and text carries its light
-  `fill` and `stroke` as presentation attributes, also fonts and sizes
-  (`font-family`, `font-size`, `font-weight`). Never `var(--…)`, and never
-  a light colour that exists only in CSS.
-- **No transparency.** No `fill-opacity`. Box tints are solid colours,
-  precomputed by blending the role colour over the background (see
-  [The palette](#the-palette)).
-- **CSS holds only the dark override.** The `<style>` block contains a
-  single `@media (prefers-color-scheme: dark)` block, and that block sets
-  only `fill` and `stroke`. CSS beats presentation attributes, so a font
-  set there would override the monospace attributes.
-- **Classes stay on the elements.** `class="frame b-vm"` and the like are
-  what the dark block hooks into, so keep them on new elements, next to
-  the attributes.
-- **Single quotes inside attributes.** `font-family="system-ui,'Segoe UI',…"`;
-  double quotes break the XML.
+The classes stay on the elements: they are what the dark block hooks into.
+
+## The rules for a source
+
+- **The `<style>` block starts with the two palettes.** Its first line is
+  the light palette on `svg{--bg:…;--fg:…;…}`, its second the dark one
+  inside `@media (prefers-color-scheme: dark){svg{…}}`. The script reads
+  them from there.
+- **One selector per rule after that**, `text` or `.class`: no
+  combinators, no nesting. An element with several classes gets them in
+  the order of its `class` attribute, so the last one wins, as `chip` does
+  in `class="frame b-vm chip"`.
+- **No `<tspan>`.** ImageMagick lays it out on top of the text before it.
+  A bold word in a sentence is a separate `<text>` with its own `x`.
 - **Self-contained.** No `<script>`, no `<foreignObject>`, no external
   fonts or images. Fonts are system stacks: `system-ui, -apple-system,
-  'Segoe UI', Roboto, sans-serif`, and `ui-monospace, SFMono-Regular,
+  "Segoe UI", Roboto, sans-serif`, and `ui-monospace, SFMono-Regular,
   Menlo, Consolas, monospace` for code.
 - **Nothing private**, as everywhere in the repository: addresses and
   limits are the example policy's.
-- The `data-layer` attributes on the groups, and the empty `<g id="sim">`,
-  do nothing in the file. They are hooks for an interactive version of
-  the drawing, and harmless otherwise.
+- The `data-layer` and `data-part` attributes on the groups, and the
+  empty `<g id="sim">`, do nothing in the file. They are hooks for an
+  interactive version of the drawings, and harmless otherwise.
 
 ## The palette
 
 The outline colour of a box is the role that builds it, which the
-controller column of the drawing explains.
+controller column of the first drawing explains. The tints are what the
+script computes for the published file.
 
 | Class | Meaning | Light | Light tint | Dark | Dark tint |
 |---|---|---|---|---|---|
@@ -84,21 +115,15 @@ Background and text: light `#f4f6f9` and `#18212c`, dark `#0f141b` and
 
 The class prefixes: `b-` a box (tint fill, colour stroke), `c-` coloured
 text, `s-` a solid swatch, `l-` a line (`l-ok` allowed, `l-no` blocked,
-dashed, `l-mu` neutral), `x` the red cross at a blocked end.
-
-A new tint is the role colour blended over the background:
-
-```python
-def blend(colour, background, alpha):
-    c = [int(colour[i:i + 2], 16) for i in (1, 3, 5)]
-    b = [int(background[i:i + 2], 16) for i in (1, 3, 5)]
-    return '#' + ''.join(f'{round(bb * (1 - alpha) + cc * alpha):02x}' for cc, bb in zip(c, b))
-
-blend('#2f6fae', '#f4f6f9', 0.08)   # light tint, alpha 0.08 to 0.13
-blend('#6aa8e0', '#0f141b', 0.09)   # dark tint, alpha 0.09 to 0.14
-```
+dashed, `l-mu` neutral, `l-box` the image's path), `x` the red cross at a
+blocked end, `chip` a small label box with a solid background.
 
 ## The layout grid
+
+Both diagrams are 1290 px wide and share the conventions below the
+first table.
+
+### architecture.svg
 
 `viewBox="0 0 1290 850"`. From left to right:
 
@@ -119,24 +144,44 @@ The allowed path runs from the Claude Code box at y 470, up the gap at
 x 755 into nftables at y 355, down at x 900 into Squid, and out at y 540
 through the NAT chip to the allowlist.
 
-## Changing the diagram
+### claude-code-image.svg
 
+`viewBox="0 0 1290 1070"`. Four rows inside the VM, with 40 px between
+them for the arrows, and the update strip below the VM:
+
+| Row | y | Left | Right |
+|---|---|---|---|
+| Recipe | 130–290 | `/etc/agentbox/` x 265–505, build or not x 535–745 | |
+| Build | 330–565 | `podman build` x 265–745 | Squid x 775–1030, internet x 1090–1270 |
+| Storage | 605–725 | image storage x 265–745 | the role's check x 775–1030 |
+| Run | 765–845 | launcher x 265–505 | session container x 535–1030 |
+| Update | 918–1010 | four steps, 290 px wide, 30 px apart, x 20–1270 | |
+
+The controller sits at x 20–225, y 130–330, and the VM at x 245–1050,
+y 90–860. Each build step names the host it needs, right-aligned, in the
+`egress_proxy` colour.
+
+## Changing a diagram
+
+- Edit the source in `dev/diagrams/`, then run `dev/flatten-svg.py` and
+  commit both files.
 - Copy a neighbouring element of the same kind and change its text and
-  position. That keeps the classes and the attributes together.
+  position. That keeps its classes.
 - Check that the text fits: about 6.2 px per character for 12 px text and
   6.6 px for 11 px code.
-- A new colour or role: add its light attributes to the elements, its
-  `fill` and `stroke` to the dark block, and a row to the table above.
+- A new colour: add it to both palette lines of the source, and a row to
+  the table above.
 - When the design changes what a part does, the diagram changes in the
   same commit, like any other doc file.
 
 ## Checking it
 
 ```bash
-xmllint --noout docs/images/architecture.svg            # well-formed XML
-convert docs/images/architecture.svg /tmp/arch.png      # ImageMagick's own renderer: the strictest
+xmllint --noout docs/images/<name>.svg            # well-formed XML
+convert docs/images/<name>.svg /tmp/<name>.png    # ImageMagick's own renderer: the strictest
 ```
 
 Then open it in a browser in both themes. In ImageMagick's render, the
 arrowheads and some letter spacing are missing; that is expected. Black
-or missing boxes mean a rule above was broken.
+or missing boxes mean the published file was edited by hand, or a rule
+for the source was broken.

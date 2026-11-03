@@ -1,0 +1,220 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1290 1070" width="1290" height="1070" role="img" aria-label="How Claude Code gets into a session: the inventory pins a Claude Code version and an image tag; the agentbox role renders a root-owned Containerfile, builds it rootless as agent through Squid only when the tag does not exist yet, checks the image, and renders the tag into the launcher, which runs it with --pull=never. Updating means bumping both values; the old tag stays for going back.">
+<style>
+@media (prefers-color-scheme: dark){
+text{fill:#e3e8ef}
+.bg{fill:#0f141b}
+.mu{fill:#95a2b4}
+.sub{fill:#95a2b4}
+.lab{fill:#95a2b4}
+.b-vm{fill:#17212d;stroke:#6aa8e0}
+.b-pod{fill:#14272b;stroke:#3cc4b3}
+.b-box{fill:#222435;stroke:#a990ec}
+.b-egr{fill:#2b2623;stroke:#f0a35a}
+.b-mu{fill:#1b2129;stroke:#95a2b4}
+.b-ok{fill:#192b27;stroke:#5cc77a}
+.c-vm{fill:#6aa8e0}
+.c-pod{fill:#3cc4b3}
+.c-box{fill:#a990ec}
+.c-egr{fill:#f0a35a}
+.c-ok{fill:#5cc77a}
+.c-no{fill:#f07066}
+.c-mu{fill:#95a2b4}
+.l-ok{fill:none;stroke:#5cc77a}
+.l-mu{fill:none;stroke:#95a2b4}
+.l-box{fill:none;stroke:#a990ec}
+.sep{stroke:#a990ec}
+.chip{fill:#0f141b}
+}
+</style>
+<defs>
+  <marker id="ah-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="c-ok" fill="#1f7f45"/></marker>
+  <marker id="ah-mu" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="c-mu" fill="#5a6575"/></marker>
+  <marker id="ah-box" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="c-box" fill="#6648b8"/></marker>
+</defs>
+
+<rect class="bg" x="0" y="0" width="1290" height="1070" fill="#f4f6f9"/>
+
+<text class="ti" x="20" y="38" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="20px" fill="#18212c" font-weight="700">How Claude Code gets into a session</text>
+<text class="sub" x="20" y="58" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">tutner.agent_sandbox: installed when the image is built, pinned, never updated in place</text>
+
+<!-- Controller -->
+<g data-part="controller">
+  <rect class="frame b-mu" x="20" y="130" width="205" height="200" rx="8" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
+  <text class="h" x="36" y="152" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Controller</text>
+  <text class="sub" x="36" y="170" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">the inventory pins both</text>
+  <text class="ms" x="36" y="196" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">sandbox_image_tag:</text>
+  <text class="ms c-box" x="36" y="211" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#6648b8">  "0.2.0"</text>
+  <text class="ms" x="36" y="231" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">agentbox_claude_code_version:</text>
+  <text class="ms c-box" x="36" y="246" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#6648b8">  "2.1.284"</text>
+  <text class="mu" x="36" y="266" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">bumped together</text>
+  <text class="ms" x="36" y="296" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">playbook sandbox</text>
+  <text class="ms" x="36" y="311" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">--tags agentbox</text>
+</g>
+
+<!-- VM -->
+<rect class="frame b-vm" x="245" y="90" width="805" height="770" rx="9" stroke-width="1.6" fill="#e4ebf3" stroke="#2f6fae"/>
+<text class="h" x="261" y="112" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Debian 13 VM</text>
+<text class="tag c-vm" x="1036" y="112" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#2f6fae" font-weight="600" text-anchor="end">builds and runs as agent; the recipe belongs to root</text>
+<line class="l-mu" x1="225" y1="210" x2="262" y2="210" marker-end="url(#ah-mu)" fill="none" stroke="#5a6575" stroke-width="1.4"/>
+
+<!-- /etc/agentbox -->
+<g data-part="recipe">
+  <rect class="frame b-box" x="265" y="130" width="240" height="160" rx="7" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
+  <text class="h" x="281" y="152" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">/etc/agentbox/</text>
+  <text class="tag c-box" x="491" y="152" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#6648b8" font-weight="600" text-anchor="end">agentbox</text>
+  <text class="sub" x="281" y="170" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">owned by root, rendered by the role</text>
+  <text class="m" x="281" y="194" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">Containerfile</text>
+  <text class="m" x="281" y="212" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">git-credential-agentbox</text>
+  <text class="sub" x="281" y="236" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">build hash: SHA-256 of both</text>
+  <text class="mu" x="281" y="270" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">agent builds from it, cannot change it</text>
+</g>
+<line class="l-mu" x1="505" y1="210" x2="533" y2="210" marker-end="url(#ah-mu)" fill="none" stroke="#5a6575" stroke-width="1.4"/>
+
+<!-- decision -->
+<g data-part="decision">
+  <rect class="frame b-box" x="535" y="130" width="210" height="160" rx="7" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
+  <text class="h" x="551" y="152" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Build or not?</text>
+  <text class="sub" x="551" y="170" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">is the tag in agent's storage?</text>
+  <text class="m" x="551" y="196" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">no</text>
+  <text class="m c-ok bold" x="729" y="196" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#1f7f45" font-weight="600">build it</text>
+  <line class="sep" x1="551" y1="204" x2="729" y2="204" stroke="#6648b8" stroke-opacity=".35" stroke-width="1"/>
+  <text class="m" x="551" y="220" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">yes, same hash</text>
+  <text class="m" x="729" y="220" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">keep</text>
+  <line class="sep" x1="551" y1="228" x2="729" y2="228" stroke="#6648b8" stroke-opacity=".35" stroke-width="1"/>
+  <text class="m" x="551" y="244" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">yes, other hash</text>
+  <text class="m c-no bold" x="729" y="244" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#c23a2f" font-weight="600">fail</text>
+  <text class="mu" x="551" y="270" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">a tag names exactly one build</text>
+</g>
+<line class="l-box" x1="640" y1="290" x2="640" y2="327" marker-end="url(#ah-box)" fill="none" stroke="#6648b8" stroke-width="1.8"/>
+<text class="sub small" x="648" y="313" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">no: build</text>
+
+<!-- build -->
+<g data-part="build">
+  <rect class="frame b-box" x="265" y="330" width="480" height="235" rx="7" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
+  <text class="h" x="281" y="352" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">podman build, rootless, as agent</text>
+  <text class="tag c-box" x="729" y="352" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#6648b8" font-weight="600" text-anchor="end">agentbox</text>
+  <text class="sub" x="281" y="369" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">tagged localhost/agentbox:0.2.0, labelled with the build hash</text>
+  <text class="m" x="281" y="394" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">FROM debian:trixie-slim</text>
+  <text class="ms c-egr" x="729" y="394" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#b8650f">docker.io</text>
+  <text class="m" x="281" y="416" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">apt-get install git ripgrep bubblewrap socat …</text>
+  <text class="ms c-egr" x="729" y="416" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#b8650f">.debian.org</text>
+  <text class="m" x="281" y="438" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">NodeSource key (.asc), nodejs 22</text>
+  <text class="ms c-egr" x="729" y="438" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#b8650f">deb.nodesource.com</text>
+  <text class="m c-box bold" x="281" y="460" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#6648b8" font-weight="600">npm install -g @anthropic-ai/claude-code@2.1.284</text>
+  <text class="ms c-egr" x="729" y="460" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#b8650f">.npmjs.org</text>
+  <text class="m c-box bold" x="281" y="482" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#6648b8" font-weight="600">ENV DISABLE_AUTOUPDATER=1</text>
+  <text class="m" x="281" y="504" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">user dev 1000:1000, git credential helper</text>
+  <text class="m" x="281" y="526" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">USER dev · WORKDIR /work · CMD ["claude"]</text>
+  <text class="mu" x="281" y="551" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">Claude Code installed as root under /usr: dev cannot change it</text>
+</g>
+<line class="l-ok" x1="745" y1="445" x2="772" y2="445" marker-end="url(#ah-ok)" fill="none" stroke="#1f7f45" stroke-width="2.2"/>
+
+<!-- Squid -->
+<g data-part="squid">
+  <rect class="frame b-egr" x="775" y="330" width="255" height="235" rx="7" stroke-width="1.6" fill="#ede6df" stroke="#b8650f"/>
+  <text class="h" x="791" y="352" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Squid</text>
+  <text class="tag c-egr" x="1016" y="352" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#b8650f" font-weight="600" text-anchor="end">egress_proxy</text>
+  <text class="sub" x="791" y="370" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">every build step goes through it</text>
+  <text class="sub" x="791" y="394" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">the proxy comes from containers.conf</text>
+  <text class="sub" x="791" y="411" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">and is not baked into the image</text>
+  <text class="sub" x="791" y="435" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">so build sources must be on</text>
+  <text class="sub" x="791" y="452" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">egress_allowlist, even those a</text>
+  <text class="sub" x="791" y="469" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">session never uses</text>
+  <text class="mu" x="791" y="551" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">the build runs as agent, like a session</text>
+</g>
+<line class="l-ok" x1="1030" y1="445" x2="1087" y2="445" marker-end="url(#ah-ok)" fill="none" stroke="#1f7f45" stroke-width="2.2"/>
+
+<!-- Internet -->
+<g data-part="internet">
+  <rect class="frame b-ok" x="1090" y="330" width="180" height="235" rx="7" stroke-width="1.6" fill="#dce9e5" stroke="#1f7f45"/>
+  <text class="h" x="1106" y="352" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Internet</text>
+  <text class="sub" x="1106" y="370" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">build-time sources</text>
+  <text class="m" x="1106" y="394" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">registry-1.docker.io</text>
+  <text class="m" x="1106" y="416" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">deb.debian.org</text>
+  <text class="m" x="1106" y="438" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">deb.nodesource.com</text>
+  <text class="m" x="1106" y="460" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">registry.npmjs.org</text>
+  <text class="mu" x="1106" y="551" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">all on the allowlist</text>
+</g>
+
+<line class="l-box" x1="505" y1="565" x2="505" y2="602" marker-end="url(#ah-box)" fill="none" stroke="#6648b8" stroke-width="1.8"/>
+<text class="sub small" x="513" y="588" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">tag</text>
+
+<!-- storage -->
+<g data-part="storage">
+  <rect class="frame b-pod" x="265" y="605" width="480" height="120" rx="7" stroke-width="1.6" fill="#deebec" stroke="#13806f"/>
+  <text class="h" x="281" y="627" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">agent's image storage</text>
+  <text class="tag c-pod" x="729" y="627" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#13806f" font-weight="600" text-anchor="end">podman</text>
+  <rect class="frame b-box" x="281" y="640" width="448" height="30" rx="5" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
+  <text class="m bold" x="293" y="660" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c" font-weight="600">localhost/agentbox:0.2.0</text>
+  <text class="sub small" x="717" y="659" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">Claude Code 2.1.284 · current</text>
+  <rect class="frame b-mu" x="281" y="680" width="448" height="30" rx="5" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
+  <text class="m sub" x="293" y="700" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#5a6575">localhost/agentbox:0.1.0</text>
+  <text class="sub small" x="717" y="699" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">older build, kept for going back</text>
+</g>
+<line class="l-mu" x1="745" y1="665" x2="772" y2="665" marker-end="url(#ah-mu)" fill="none" stroke="#5a6575" stroke-width="1.4"/>
+
+<!-- check -->
+<g data-part="check">
+  <rect class="frame b-box" x="775" y="605" width="255" height="120" rx="7" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
+  <text class="h" x="791" y="627" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Checked once, by the role</text>
+  <text class="m" x="791" y="649" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">User = dev, uid 1000</text>
+  <text class="m" x="791" y="666" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">no *_proxy in Env</text>
+  <text class="m" x="791" y="683" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">claude --version = 2.1.284</text>
+  <text class="m" x="791" y="700" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">credential helper = agentbox</text>
+  <text class="mu" x="791" y="717" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">a wrong image fails the run</text>
+</g>
+
+<line class="l-box" x1="385" y1="725" x2="385" y2="762" marker-end="url(#ah-box)" fill="none" stroke="#6648b8" stroke-width="1.8"/>
+<text class="sub small" x="393" y="748" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">by tag, never pulled</text>
+
+<!-- launcher -->
+<g data-part="launcher">
+  <rect class="frame b-box" x="265" y="765" width="240" height="80" rx="7" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
+  <text class="h" x="281" y="787" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">/usr/local/bin/agentbox</text>
+  <text class="sub" x="281" y="805" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">the tag is rendered into it</text>
+  <text class="m" x="281" y="825" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">--pull=never</text>
+</g>
+<line class="l-box" x1="505" y1="805" x2="532" y2="805" marker-end="url(#ah-box)" fill="none" stroke="#6648b8" stroke-width="1.8"/>
+
+<!-- session -->
+<g data-part="session">
+  <rect class="frame b-box" x="535" y="765" width="495" height="80" rx="7" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
+  <text class="h" x="551" y="787" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Session container</text>
+  <text class="tag c-box" x="1016" y="787" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#6648b8" font-weight="600" text-anchor="end">--rm, one per session</text>
+  <text class="sub" x="551" y="805" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">runs claude from the image; user dev cannot update it</text>
+  <text class="m c-box" x="551" y="825" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#6648b8">DISABLE_AUTOUPDATER=1</text>
+  <text class="sub" x="1016" y="825" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">the login in /home/dev/.claude outlives updates</text>
+</g>
+
+<!-- Updating -->
+<text class="h" x="20" y="902" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Updating Claude Code</text>
+<text class="sub" x="190" y="902" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">four steps, and the old image stays</text>
+<g data-part="update">
+  <rect class="frame b-mu" x="20" y="918" width="290" height="92" rx="7" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
+  <text class="h" x="36" y="940" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">1 · Bump both values</text>
+  <text class="ms" x="36" y="960" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">agentbox_claude_code_version: "2.x.y"</text>
+  <text class="ms" x="36" y="976" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">sandbox_image_tag: "0.3.0"</text>
+  <text class="mu" x="36" y="996" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">a new tag, never a reused one</text>
+  <rect class="frame b-mu" x="340" y="918" width="290" height="92" rx="7" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
+  <text class="h" x="356" y="940" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">2 · Run the role</text>
+  <text class="ms" x="356" y="960" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">playbook sandbox --tags agentbox</text>
+  <text class="sub" x="356" y="978" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">0.3.0 is not in storage: build it</text>
+  <text class="sub" x="356" y="995" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">and check the new version</text>
+  <rect class="frame b-mu" x="660" y="918" width="290" height="92" rx="7" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
+  <text class="h" x="676" y="940" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">3 · Launcher names 0.3.0</text>
+  <text class="sub" x="676" y="960" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">re-rendered with the new tag</text>
+  <text class="sub" x="676" y="977" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">0.2.0 stays in storage</text>
+  <text class="sub" x="676" y="994" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">a running session keeps its image</text>
+  <rect class="frame b-mu" x="980" y="918" width="290" height="92" rx="7" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
+  <text class="h" x="996" y="940" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">4 · Next session runs it</text>
+  <text class="sub" x="996" y="960" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">the same login and transcripts</text>
+  <text class="sub" x="996" y="977" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">nothing in /work changes</text>
+  <line class="l-mu" x1="310" y1="964" x2="337" y2="964" marker-end="url(#ah-mu)" fill="none" stroke="#5a6575" stroke-width="1.4"/>
+  <line class="l-mu" x1="630" y1="964" x2="657" y2="964" marker-end="url(#ah-mu)" fill="none" stroke="#5a6575" stroke-width="1.4"/>
+  <line class="l-mu" x1="950" y1="964" x2="977" y2="964" marker-end="url(#ah-mu)" fill="none" stroke="#5a6575" stroke-width="1.4"/>
+</g>
+<text class="sub bold" x="20" y="1036" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575" font-weight="600">Going back:</text>
+<text class="sub" x="100" y="1036" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">Set both values back. The tag exists with a matching hash, so nothing is built and the launcher names it again.</text>
+<text class="sub bold" x="20" y="1056" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575" font-weight="600">Forgot the tag?</text>
+<text class="sub" x="124" y="1056" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">The recipe hash no longer matches the existing tag, and the role fails instead of rebuilding it.</text>
+</svg>
