@@ -19,6 +19,10 @@ level.
 - `.claude/CLAUDE.md`: issues get a type (Feature, Bug or Task), not the labels `bug` or `enhancement`; labels only for what a type cannot say.
 - README: new section "Starting and stopping the VM", listed in the table of contents. The VM does not start with the host; `provision` starts an existing VM that is off and waits for it, and needs the network for Debian's `SHA512SUMS`; or `VBoxManage startvm --type headless` followed by the playbook `wait`. Stopping with `VBoxManage controlvm <vm> acpipowerbutton`, and that a shutdown clears every `session` token.
 
+#### Changed
+
+- README, "Updating Claude Code": the full command to apply an update, `ansible-playbook tutner.agent_sandbox.sandbox --tags agentbox`, run from the working directory, instead of only naming the tag; where the two values live (`group_vars/agent_sandbox.yml`); that the new image is built beside the old one and the next session runs it; and that it reaches every project on a VM, since a VM has one image for all of them, and every VM in the group whose values come from `group_vars`, with `--limit <vm>` to try one first. A running session keeps the old image until it ends. The sentence linking the diagram is no longer part of the last bullet about tag names. The same for allowing a host: the full command, `ansible-playbook tutner.agent_sandbox.sandbox --tags egress,agentbox`, instead of only the tags.
+
 ## [0.2.0] - 2026-11-03 — Repository Tokens
 
 ### 2026-11-03

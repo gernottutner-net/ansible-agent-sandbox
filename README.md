@@ -441,8 +441,13 @@ sudo grep TCP_DENIED /var/log/squid/access.log | tail -20
 
 To allow a host, first decide whether it should be reachable at all: every
 entry is also a way out for data. Add it to `egress_allowlist`, prefer the
-exact host over a leading dot, and apply with `--tags egress,agentbox`:
-both, because Squid and Claude Code's sandbox each get the list.
+exact host over a leading dot, and apply it from your working directory:
+
+```bash
+ansible-playbook tutner.agent_sandbox.sandbox --tags egress,agentbox
+```
+
+Both tags, because Squid and Claude Code's sandbox each get the list.
 
 `DISABLE_TELEMETRY=1` and `DISABLE_ERROR_REPORTING=1` in the example policy
 keep Claude Code from trying its telemetry and error-reporting hosts, which
@@ -453,12 +458,25 @@ from an image rebuild.
 ## Updating Claude Code
 
 The image holds a pinned Claude Code and never updates itself. Change both
-values and apply with `--tags agentbox`:
+values in `group_vars/agent_sandbox.yml`:
 
 ```yaml
 sandbox_image_tag: "0.2.0-cc2.x.y"         # a new tag, never reuse one
 agentbox_claude_code_version: "2.x.y"
 ```
+
+Then apply them from your working directory:
+
+```bash
+ansible-playbook tutner.agent_sandbox.sandbox --tags agentbox
+```
+
+The new image is built beside the old one, and the next session started
+with `agentbox` runs it. A VM has one image for all its projects, so
+every project gets the new Claude Code; a session already running keeps
+the old one until it ends. The run updates every VM in the group
+`agent_sandbox` whose values come from `group_vars`; add `--limit <vm>`
+to try one VM first.
 
 The role refuses to rebuild an existing tag from a changed recipe, so a
 forgotten tag bump fails loudly. Going back: set both values back; the old
@@ -475,9 +493,10 @@ Code version is recommended:
   names its own tags `X.Y.Z`.
 - After a collection upgrade that changes the image, move the prefix
   along, as in `0.3.0-cc2.x.y`.
-- Use `-`, not semver's `+`: image tags do not allow `+`. A [diagram](docs/images/claude-code-image.svg) shows
-how Claude Code gets into the image and into a session, and how an update
-replaces it.
+- Use `-`, not semver's `+`: image tags do not allow `+`.
+
+A [diagram](docs/images/claude-code-image.svg) shows how Claude Code gets
+into the image and into a session, and how an update replaces it.
 
 ## What it protects, and what not
 
