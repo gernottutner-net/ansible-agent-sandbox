@@ -433,9 +433,11 @@ No bug was found. Two things worth knowing:
   tested only against a stand-in `podman`; a self-hosted GitLab in a
   release test, tested only by hand
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
-- Linked sessions: a broker restart with sessions open, and Claude Code
-  2.1.284, the version of the example policy; see
-  [docs/design.md, "What is open"](design.md#what-is-open).
+- Linked sessions: a broker restart with sessions open, and logins other
+  than Pro, which probably need `channelsEnabled: true`
+  ([docs/design.md, "What is open"](design.md#what-is-open)); Claude Code
+  2.1.284, the version of the example policy
+  ([docs/design.md, "What was tested"](design.md#what-was-tested-1)).
 - `--check --diff` showing an image rebuild: finding 3 of the
   [release test of v0.2.0](#findings), not fixed.
 - Why Claude could write `.git/config` in the release test of `v0.3.0`
