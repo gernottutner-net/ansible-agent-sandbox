@@ -416,6 +416,11 @@ open; without one, both are rejected.
   [The launcher contract](#the-launcher-contract). The run policy is
   rendered into that one script, not read from the environment, so no
   invocation can forget a limit.
+- **The peer broker**, only with `agentbox_peer_links` set: a system unit
+  `agentbox-peer`, its policy in `/etc/agentbox/peer-links.json` and the
+  MCP configuration of linked sessions in `/etc/agentbox/peer-mcp.json`,
+  all root-owned. Without links the role removes all of it. Described under
+  [Sessions that talk to each other](#sessions-that-talk-to-each-other).
 - Ends by inspecting the image and running it once as `agent` (no mount,
   no secret): its `User` is `dev`, no `*_proxy` variable is in its `Env`,
   and under the launcher's user mapping `claude --version` reports the

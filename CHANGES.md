@@ -5,6 +5,16 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-13
+
+#### Changed
+
+- `docs/design.md`, "`agentbox`: image, managed settings and launcher": the role's list of what it sets up names the peer broker, its unit and its two files, installed only with `agentbox_peer_links` and removed without.
+
+#### Notes
+
+- Not yet showing linked sessions: `docs/images/architecture.svg` and the interactive version linked from the README. They show the sandbox without links, which is the default.
+
 ### 2026-11-05
 
 #### Added
