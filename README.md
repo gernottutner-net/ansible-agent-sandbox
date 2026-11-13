@@ -41,7 +41,7 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
   - [Getting a project in](#getting-a-project-in)
   - [Repository tokens](#repository-tokens)
   - [Claude Code's own sandbox](#claude-codes-own-sandbox)
-  - [Sessions that talk to each other](#sessions-that-talk-to-each-other)
+  - [Agent Intercom](#agent-intercom)
 - [Egress](#egress)
 - [Updating Claude Code](#updating-claude-code)
 - [What it protects, and what not](#what-it-protects-and-what-not)
@@ -61,7 +61,7 @@ guest over SSH, in this order, from the playbook `sandbox`.
 | `virtualbox_vm` | The VM from Debian's checksum-verified cloud image: a NAT and a host-only NIC with pinned MACs, a cloud-init seed with an `ansible` account and your key, headless start; snapshots with one rolling slot plus a baseline; teardown. Details in [docs/virtualbox.md](docs/virtualbox.md). |
 | `podman` | Podman with crun and pasta; a sudo-less user `agent` with a pinned subuid range, lingering, and delegated cgroup v2 limits. Asserts no sudo rights and no overlapping ranges. |
 | `egress_proxy` | Squid with a default-deny allowlist, and an nftables rule on `agent`'s uid that makes Squid the only way out. Probes an allowed host, a denied one and a bypass on every run. |
-| `agentbox` | The image (Debian, Node, a pinned Claude Code), Claude Code's managed settings, and the launcher `/usr/local/bin/agentbox`, the only supported way to start a session. With the playbook `git_token`, it also hands a project its [repository tokens](#repository-tokens). With links in the inventory, it also lets [sessions talk to each other](#sessions-that-talk-to-each-other). |
+| `agentbox` | The image (Debian, Node, a pinned Claude Code), Claude Code's managed settings, and the launcher `/usr/local/bin/agentbox`, the only supported way to start a session. With the playbook `git_token`, it also hands a project its [repository tokens](#repository-tokens). With links in the inventory, it also sets up the [Agent Intercom](#agent-intercom), so sessions can talk to each other. |
 
 Every role checks what it set up before it finishes, so a run that passes
 has been observed denying, not only configured to. The layers they build,
@@ -547,10 +547,11 @@ PID 1 is `/run/podman-init`, `claude` its child, and the command runs below
 a `bwrap --new-session …` pair. `[bwrap]` in brackets would be a zombie;
 the launcher's `--init` reaps them.
 
-### Sessions that talk to each other
+### Agent Intercom
 
-Off by default. With links in your inventory, Claude in one session can
-talk to Claude in another, with nobody typing:
+Sessions that talk to each other. Off by default. With links in your
+inventory, Claude in one session can talk to Claude in another, with nobody
+typing:
 
 ```yaml
 agentbox_peer_links:
@@ -602,7 +603,7 @@ Worth knowing:
   `sudo journalctl -u agentbox-peer`.
 
 Remove the links and run the play again, and everything is gone.
-[docs/design.md](docs/design.md#sessions-that-talk-to-each-other) has how
+[docs/design.md](docs/design.md#agent-intercom) has how
 it works, what it costs, and what was tested.
 
 ## Egress
@@ -699,7 +700,7 @@ from the container lands in a sudo-less account. It does not:
   command Claude runs can read the project's token; its scope is the
   limit ([Repository tokens](#repository-tokens)).
 - **keep two linked projects apart.** That is what
-  [a link](#sessions-that-talk-to-each-other) gives up: a misled session
+  [a link](#agent-intercom) gives up: a misled session
   can steer the one it is linked to.
 - **prevent leaks to allowed hosts.** The allowlist says which
   organisations the agent may talk to, not what it may say: a gist on

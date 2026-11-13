@@ -61,9 +61,9 @@ agentbox_auto_claude_env:
 agentbox_sandbox_allow_write:
   - "/home/{{ agentbox_image_user }}/.npm"
 
-# Sessions that talk to each other. Off without links. A link means the two
+# Agent Intercom: sessions that talk to each other. Off without links. A link means the two
 # projects trust each other, and costs telemetry in those sessions: read the
-# README, "Sessions that talk to each other", first.
+# README, "Agent Intercom", first.
 # agentbox_peer_links:
 #   - { from: alpha, to: beta }
 #   - { from: beta, to: alpha }

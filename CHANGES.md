@@ -9,6 +9,7 @@ level.
 
 #### Changed
 
+- Linked sessions get a name, the Agent Intercom. The section "Sessions that talk to each other" in `docs/design.md` and in the README is now "Agent Intercom", with the TOCs, the links to it, Decision 19 and the README's `agentbox` row; the comments in the role and the example inventory that point to it follow. The variables, files and units keep their `peer` names.
 - `docs/design.md`, "`agentbox`: image, managed settings and launcher": the role's list of what it sets up names the peer broker, its unit and its two files, installed only with `agentbox_peer_links` and removed without.
 
 #### Notes

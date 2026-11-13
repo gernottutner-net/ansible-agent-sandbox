@@ -93,11 +93,11 @@ agentbox_git_tokens: {}
 # tokens are on tmpfs, under /run/user/<uid>/agentbox/tokens/session/.
 agentbox_token_dir_name: .agentbox-tokens
 
-# Sessions that talk to each other. Nothing is linked by default, and without
-# links nothing here is installed. Each entry lets one project send to another,
+# Agent Intercom: sessions that talk to each other. Nothing is linked by
+# default, and without links nothing here is installed. Each entry lets one project send to another,
 # so a conversation takes both directions. A link is a statement that the two
-# projects trust each other: see docs/design.md, "Sessions that talk to each
-# other", and read it first.
+# projects trust each other: see docs/design.md, "Agent Intercom",
+# and read it first.
 #
 #   agentbox_peer_links:
 #     - { from: alpha, to: beta }

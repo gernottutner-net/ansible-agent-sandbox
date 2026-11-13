@@ -1,7 +1,7 @@
 ---
-# Sessions that talk to each other: the broker on the VM and its policy, or
-# nothing at all when no links are set. See docs/design.md, "Sessions that
-# talk to each other". The launcher decides per session whether it is linked.
+# Agent Intercom, sessions that talk to each other: the broker on the VM and
+# its policy, or nothing at all when no links are set. See docs/design.md,
+# "Agent Intercom". The launcher decides per session whether it is linked.
 
 - name: Record the projects in a link
   ansible.builtin.set_fact:

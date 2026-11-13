@@ -11,7 +11,7 @@ channel capability, so a message starts a turn in the receiving session. It
 never declares claude/channel/permission: whoever can answer through a channel
 with that capability can approve tool use in the session.
 
-Standard library only. See docs/design.md, "Sessions that talk to each other".
+Standard library only. See docs/design.md, "Agent Intercom".
 
     agentbox-peer-broker /etc/agentbox/peer-links.json
 """

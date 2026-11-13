@@ -46,7 +46,7 @@ named are the ones tested: Debian 13, Podman 5.4.2, Squid 6.13, kernel
   - [What it does not protect](#what-it-does-not-protect)
   - [What was tested](#what-was-tested)
   - [Findings on the VM](#findings-on-the-vm)
-- [Sessions that talk to each other](#sessions-that-talk-to-each-other)
+- [Agent Intercom](#agent-intercom)
   - [The pieces](#the-pieces)
   - [What a link costs](#what-a-link-costs)
   - [What was tested](#what-was-tested-1)
@@ -420,7 +420,7 @@ open; without one, both are rejected.
   `agentbox-peer`, its policy in `/etc/agentbox/peer-links.json` and the
   MCP configuration of linked sessions in `/etc/agentbox/peer-mcp.json`,
   all root-owned. Without links the role removes all of it. Described under
-  [Sessions that talk to each other](#sessions-that-talk-to-each-other).
+  [Agent Intercom](#agent-intercom).
 - Ends by inspecting the image and running it once as `agent` (no mount,
   no secret): its `User` is `dev`, no `*_proxy` variable is in its `Env`,
   and under the launcher's user mapping `claude --version` reports the
@@ -480,7 +480,7 @@ agentbox_sandbox_allow_write:             # writable in Claude Code's sandbox
 
 Without `agentbox_peer_links`, nothing else is in play. With it,
 `agentbox_peer_budget` and `agentbox_peer_max_bytes` apply; see
-[Sessions that talk to each other](#sessions-that-talk-to-each-other).
+[Agent Intercom](#agent-intercom).
 
 Notes on the allowlist:
 
@@ -587,7 +587,7 @@ hangup.
 `agentbox <project>` on a terminal, in a project in a link, adds the
 project's broker socket and `managed-mcp.json`, leaves out
 `agentbox_peer_unset_env`, and starts Claude Code with channels; see
-[Sessions that talk to each other](#sessions-that-talk-to-each-other).
+[Agent Intercom](#agent-intercom).
 Without links, none of that is in the launcher.
 
 **The API key** is optional. If `agent` has a Podman secret
@@ -884,15 +884,16 @@ mounting the one project's directories, and was not tried separately.
 
 ---
 
-## Sessions that talk to each other
+## Agent Intercom
 
-Two running sessions in different projects can hold a conversation: Claude
-in one asks, Claude in the other wakes up, answers and can ask back, with
-nobody typing. Each session otherwise has its own container, network
-namespace, project directory, state directory and tokens, so this gives
-part of that up on purpose, and only where the inventory says so. Nothing
-is linked by default, and without links nothing of it is installed: the
-launcher and the managed settings render as they did before it existed.
+With the Agent Intercom, two running sessions in different projects can hold
+a conversation: Claude in one asks, Claude in the other wakes up, answers
+and can ask back, with nobody typing. Each session otherwise has its own
+container, network namespace, project directory, state directory and tokens,
+so this gives part of that up on purpose, and only where the inventory says
+so. Nothing is linked by default, and without links nothing of it is
+installed: the launcher and the managed settings render as they did before
+it existed.
 
 ### The pieces
 
@@ -1050,7 +1051,7 @@ core version it needs in its `galaxy.yml`. Candidates are the
 unattended starts) and
 [gVisor](#gvisor-the-experimental-extension). No extension exists yet.
 [Repository tokens](#repository-tokens) and
-[linked sessions](#sessions-that-talk-to-each-other) were among them, and
+[linked sessions](#agent-intercom) were among them, and
 are in the core instead ([Decisions](#decisions) 18 and 19).
 
 They are called *extensions*, not plugins: in Ansible, "plugin" already
@@ -1658,7 +1659,7 @@ decision that is revised keeps its number and says so.
     remote: the token's own scope and expiry are the limit, since git, a
     command, has to read it.
 19. **Linked sessions are core, off by default, and for interactive
-    sessions only** ([Sessions that talk to each other](#sessions-that-talk-to-each-other)).
+    sessions only** ([Agent Intercom](#agent-intercom)).
     Core rather than an extension for the reason of Decision 18: the
     extension points are not built, and this one would need a launcher
     volume and an MCP configuration that they do not yet cover. A
