@@ -721,6 +721,17 @@ Not yet tested, and not claimed:
 2. **`ANTHROPIC_API_KEY` withheld by name.** The environment was tested with a
    variable of another name; whether Claude Code keeps its API key variable
    from its commands is not known. Assume it does not.
+3. **Mods Claude writes, in `--auto`.** From Claude Code 2.1.321, Claude's
+   release notes say a mod Claude writes turns on without asking in
+   `--auto`, despite the managed settings. It runs outside the inner
+   sandbox. Whether the managed settings can keep it off is not known.
+   The example policy's version and the newest tested are both older, so
+   it does not apply yet; it needs an answer before the pin moves to
+   2.1.321 or later.
+4. **Linked sessions with logins other than Pro.** Team, Enterprise and
+   API-key logins probably need `channelsEnabled: true` in the managed
+   settings for channels, which the collection does not set. Only a Pro
+   login was tested.
 
 ## Licence
 

@@ -1035,6 +1035,13 @@ other.
 - **The MCP revision.** Claude Code does not register a channel that
   negotiates 2026-07-28 on its v2 client runtime, so the broker stays on
   2025-06-18.
+- **Logins other than Pro.** Claude Code's release notes (2.1.81,
+  2.1.128) say that Team and Enterprise organisations, and console
+  organisations on an API key, need `channelsEnabled: true` in the managed
+  settings for channels once there are managed settings, which there
+  always are here. The managed settings do not set it, and only a Pro
+  login was tested. With such a login, a linked session is expected to
+  report channels as not available.
 
 ---
 
@@ -1167,6 +1174,25 @@ are under [What re-enabling it needs](#what-re-enabling-it-needs).
    by name, which the canary, having a name of its own, could not show.
    A dummy `ANTHROPIC_API_KEY` is no way to test it: Claude Code would use
    it in place of the login, and the session could not reach the model.
+4. **Mods Claude writes, in `--auto`.** *Open, from Claude Code's release
+   notes, read 2026-11-13.* From 2.1.321, a mod Claude writes in a session
+   turns on without asking in bypass mode, which is what `--auto` runs,
+   even with the managed `allowUnsandboxedCommands: false` and
+   `allowManagedDomainsOnly` that this collection sets; before, those kept
+   it behind a question. A mod is code Claude Code runs itself, outside
+   the inner sandbox, with what Claude Code itself can read, the login
+   among it. So from that version on, Claude in an `--auto` session can
+   run code the inner sandbox does not cover, with nobody asked; the
+   container, Squid and the limits still hold. The release notes do not
+   say whether `allowManagedHooksOnly` or `disableAllHooks` in the managed
+   settings keeps such a mod off, and it was not tested. The example
+   policy pins 2.1.284, and the newest tested is 2.1.317, both before the
+   change. Moving past 2.1.317 brings four sandbox fixes from 2.1.319 to
+   2.1.323: the Bash sandbox switching off during a session, a read-only
+   command run outside it without a prompt, an escape when creating a
+   worktree, and commands reading Claude Code's file checkpoint copies in
+   the state directory. So this needs an answer before the pin moves to
+   2.1.321 or later.
 
 Another path meant to keep the environment from commands,
 `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, fails in this container with the same
@@ -1175,7 +1201,7 @@ Another path meant to keep the environment from commands,
 
 ### How they were tested
 
-The three were tested in one session on 2026-10-31, on the collection's
+The first three were tested in one session on 2026-10-31, on the collection's
 code, as release tests for the core: 1 and 2 decided what the README may
 claim, 3 the rule for credential extensions; the other release tests are
 in [docs/release-tests.md](release-tests.md). The plan, for repeating the

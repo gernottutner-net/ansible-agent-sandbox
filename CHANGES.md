@@ -14,6 +14,7 @@ level.
 
 #### Notes
 
+- Claude Code's release notes from 2.1.285 to 2.1.323 read for what touches the collection. `docs/design.md`, "Known unknowns": a new item 4, open. From 2.1.321 a mod Claude writes turns on without asking in bypass mode, so in an `--auto` session, despite the managed `allowUnsandboxedCommands: false` and `allowManagedDomainsOnly`. It runs outside the inner sandbox, and whether `allowManagedHooksOnly` or `disableAllHooks` keeps it off is not known. It needs an answer before the pin moves to 2.1.321 or later, while moving past 2.1.317 brings four sandbox fixes, listed there. "How they were tested" now says the first three. `docs/design.md`, "Agent Intercom", "What is open": Team, Enterprise and API-key logins probably need `channelsEnabled: true` in the managed settings for channels (release notes 2.1.81 and 2.1.128), which the collection does not set; only a Pro login was tested. README, "Open questions": both, as items 3 and 4. Not affecting the collection: stdio servers offered MCP 2026-07-28 from 2.1.292, which the broker answers with 2025-06-18; an unreadable managed settings file no longer stopping Claude Code from 2.1.285, which the launcher's check before the start covers; and the `ALL_PROXY` changes, since the collection sets `HTTPS_PROXY`.
 - Not yet showing linked sessions: `docs/images/architecture.svg` and the interactive version linked from the README. They show the sandbox without links, which is the default.
 
 ### 2026-11-05
