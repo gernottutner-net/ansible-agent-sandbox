@@ -46,6 +46,11 @@ named are the ones tested: Debian 13, Podman 5.4.2, Squid 6.13, kernel
   - [What it does not protect](#what-it-does-not-protect)
   - [What was tested](#what-was-tested)
   - [Findings on the VM](#findings-on-the-vm)
+- [Sessions that talk to each other](#sessions-that-talk-to-each-other)
+  - [The pieces](#the-pieces)
+  - [What a link costs](#what-a-link-costs)
+  - [What was tested](#what-was-tested-1)
+  - [What is open](#what-is-open)
 - [Core and extensions](#core-and-extensions)
 - [Extension points](#extension-points)
 - [Extensions and the security boundary](#extensions-and-the-security-boundary)
@@ -468,6 +473,10 @@ agentbox_sandbox_allow_write:             # writable in Claude Code's sandbox
   - "/home/{{ agentbox_image_user }}/.npm"
 ```
 
+Without `agentbox_peer_links`, nothing else is in play. With it,
+`agentbox_peer_budget` and `agentbox_peer_max_bytes` apply; see
+[Sessions that talk to each other](#sessions-that-talk-to-each-other).
+
 Notes on the allowlist:
 
 - A leading dot matters. Squid's `dstdomain` treats `docker.io` as an
@@ -568,6 +577,13 @@ true of `v0.1.0`). That, and deleting a session token, is why the launcher
 runs `podman run` and waits for it rather than `exec`ing it. A run meant to
 outlive the connection goes under `tmux`, or `nohup`, which ignores the
 hangup.
+
+**Linked sessions.** With `agentbox_peer_links` set, plain
+`agentbox <project>` on a terminal, in a project in a link, adds the
+project's broker socket and `managed-mcp.json`, leaves out
+`agentbox_peer_unset_env`, and starts Claude Code with channels; see
+[Sessions that talk to each other](#sessions-that-talk-to-each-other).
+Without links, none of that is in the launcher.
 
 **The API key** is optional. If `agent` has a Podman secret
 `anthropic_api_key` (`agentbox_api_key_secret`), the launcher passes it as
@@ -863,6 +879,159 @@ mounting the one project's directories, and was not tried separately.
 
 ---
 
+## Sessions that talk to each other
+
+Two running sessions in different projects can hold a conversation: Claude
+in one asks, Claude in the other wakes up, answers and can ask back, with
+nobody typing. Each session otherwise has its own container, network
+namespace, project directory, state directory and tokens, so this gives
+part of that up on purpose, and only where the inventory says so. Nothing
+is linked by default, and without links nothing of it is installed: the
+launcher and the managed settings render as they did before it existed.
+
+### The pieces
+
+```yaml
+agentbox_peer_links:
+  - { from: alpha, to: beta }
+  - { from: beta, to: alpha }
+```
+
+Each entry lets one project send to another, so a conversation takes both
+directions.
+
+- **The broker**, `agentbox-peer-broker`, is the only way between
+  sessions: a small deterministic Python program with no model in it, on
+  the VM, outside every container. A system unit running as `agent`, so
+  its code and policy are root-owned, with no network and little else
+  (`systemd-analyze security` rates it 3.0).
+- **One socket per project.** TCP is out, since nftables leaves `agent`
+  only the way through Squid. The sockets are under `/run/agentbox-peer/`.
+  The launcher mounts a project's directory into that project's session
+  only, and the broker takes the sender from the socket a message came in
+  on, so a session cannot claim to be another project. A second connection
+  on a socket is refused.
+- **Linked sessions.** A session is linked when it is plain
+  `agentbox <project>` on a terminal, for a project in a link. `--auto`, a
+  `-p` run or any other command is not, and gets no socket. The launcher
+  then mounts `/etc/agentbox/peer-mcp.json` as Claude Code's
+  `managed-mcp.json`, starts `claude
+  --dangerously-load-development-channels server:peer`, and leaves out
+  `agentbox_peer_unset_env`.
+- **The session's side is `socat`,** already in the image, between Claude
+  Code and the socket: a stdio MCP server, with the broker speaking MCP
+  itself. So the image does not change. Local MCP servers run outside
+  Claude Code's sandbox, so `allowAllUnixSockets` stays off.
+- **Waking a session.** An ordinary MCP server only answers when Claude
+  calls it. The broker also declares `claude/channel`, a Claude Code
+  research preview, and its events start a turn in the running session.
+- **One tool,** `send`, naming exactly the project's own links. Text only,
+  control characters removed, at most `agentbox_peer_max_bytes`. The
+  managed settings allow it without a prompt, since the link is the
+  approval and a prompt would stall a conversation.
+- **Every message says where it came from** and how to answer: from
+  another session, not from the user, and with which call. Without that
+  line a session answered in its own terminal, where the other never sees
+  it.
+- **A budget,** `agentbox_peer_budget`, counts messages between two
+  projects, both directions together. Two Claudes answering each other do
+  not stop by themselves, and they run at about 1.5 seconds a message.
+  Reached, the broker tells both sides and refuses more, until a person
+  starts one of the two sessions again. It is a count and not a time
+  window because nothing inside a session may reset it.
+- **Everything goes to the journal,**
+  `journalctl -u agentbox-peer`: sender, receiver, text. A channel reply
+  does not show as text in the terminal, so this is the only full record.
+- **No permission relay.** The broker never declares
+  `claude/channel/permission`: whoever can answer through a channel that
+  has it can approve tool use in that session.
+
+### What a link costs
+
+- **Prompt injection crosses projects.** A session misled by something it
+  read used to be confined to its project. With a link it can steer the
+  session on the other end, which holds that project's repository tokens
+  and files. The broker cannot filter that, because a message that
+  persuades is valid text. A link is a statement that the two projects
+  trust each other; its direction is the one limit that does not depend
+  on a model's judgement.
+- **Telemetry is on in a linked session.** With `DISABLE_TELEMETRY=1`,
+  Claude Code reports channels as not available and skips them. Squid
+  still denies the telemetry host it was seen trying,
+  `http-intake.logs.us5.datadoghq.com`, but what reaches
+  `api.anthropic.com` cannot be told from the proxy.
+  `DISABLE_ERROR_REPORTING` can stay on.
+- **The seccomp filter is what keeps commands off the socket.** A command
+  in a session sees the socket, but `socket(AF_UNIX)` fails with
+  `Operation not permitted`. That filter is optional in Claude Code, and
+  this collection does not install it, nor can the role check it without a
+  login. The broker enforces every rule regardless, so at worst a command
+  gets what the session's tool has.
+- **A research preview on the critical path.** Flags and protocol may
+  change. `--channels` takes only plugins on an allowlist, so a channel of
+  our own needs the development flag, which shows a dialog at every start
+  and is ignored with `-p`. So a person starts both sessions, confirms the
+  dialog, and leaves them open. Claude Code is the wrong place to look for
+  a queue: a message to a closed session is refused.
+- **`managed-mcp.json` is exclusive.** It turns off a project's own
+  `.mcp.json` in a linked session. The managed settings set
+  `allowAllClaudeAiMcps`, so the claude.ai connectors stay.
+
+### What was tested
+
+On a VM on 2026-11-05, with Claude Code 2.1.317 and a Pro login, through
+the launcher, with `agentbox_peer_budget: 6`. The pinned 2.1.284 of the
+example policy was not tried. `dev/test-peer-broker.py` covers the broker
+alone.
+
+| Question | Result |
+|---|---|
+| Asked at its prompt to ask the other session something | Asked; the other woke, answered with `send` unprompted; thanks came back, nobody typing |
+| A prompt for `send` | None, on either side |
+| The dialog | Shown at each start; the launcher's line above it says the session is linked |
+| `DISABLE_ERROR_REPORTING=1` | Kept, and channels work; `DISABLE_TELEMETRY` absent |
+| The budget | Stopped at 6; both sessions told; the next `send` refused |
+| A command in a linked session | `socket(1, 1, 0): Operation not permitted` |
+| `--auto` in a linked project, on a terminal | Not linked: no socket, no `managed-mcp.json`, `DISABLE_TELEMETRY` set |
+| A run without a terminal | Not linked, the same |
+| The claude.ai connectors in a linked session | `mcp-proxy.anthropic.com` in the Squid log |
+| The play, second run | `changed=0` |
+| The play without links | Removes unit, broker, policy and runtime directory; the launcher back as it was; `changed=0` after |
+| Squid | Two denials: the telemetry host above and `downloads.claude.ai`, also seen without links |
+
+Three things a spike before it showed, without the launcher:
+
+- A forged `from` in a call had no effect; a project without a link was
+  refused; a container saw its own socket and not the broker's directory.
+- With `DISABLE_TELEMETRY=1` alone, channels are off.
+- Told over a channel to run a command against the socket, a session
+  refused: a peer cannot authorise that, only its owner's prompt can.
+
+**Sessions do not simply obey each other.** With the line saying a message
+is not from the user, a session answered a question, but declined a
+counting game a peer proposed, saying its user had not asked for it. That
+is the safer way round, and the reason it is no boundary is the same: it
+is a judgement. Work between two sessions goes better when each one's own
+user says so at its prompt, for example that it will be working with the
+other.
+
+### What is open
+
+- **A broker restart.** It drops every linked session's connection, and a
+  stdio server does not come back by itself: the session has to be
+  started again. Only seen as the connections closing.
+- **`--auto` with links.** Refused by construction. An unattended session
+  driven by another's messages is where injection does the most damage,
+  and whether a link should ever opt in is a decision of its own.
+- **Claude Code's own messages between local sessions.** `/status` shows a
+  peer address on a socket in the container's own `/tmp`. Whether they
+  work across containers is not known; they are expected not to.
+- **The MCP revision.** Claude Code does not register a channel that
+  negotiates 2026-07-28 on its v2 client runtime, so the broker stays on
+  2025-06-18.
+
+---
+
 ## Core and extensions
 
 The collection is the **core**: the sandbox as it runs, with no optional
@@ -875,8 +1044,9 @@ core version it needs in its `galaxy.yml`. Candidates are the
 [Possible features](#possible-features) (an API key for unattended runs,
 unattended starts) and
 [gVisor](#gvisor-the-experimental-extension). No extension exists yet.
-[Repository tokens](#repository-tokens) were one of them, and are in the
-core instead ([Decisions](#decisions) 18).
+[Repository tokens](#repository-tokens) and
+[linked sessions](#sessions-that-talk-to-each-other) were among them, and
+are in the core instead ([Decisions](#decisions) 18 and 19).
 
 They are called *extensions*, not plugins: in Ansible, "plugin" already
 means the Python kind (filters, lookups, modules).
@@ -1482,3 +1652,14 @@ decision that is revised keeps its number and says so.
     ends; a `permanent` one on disk. Neither is minted or revoked at the
     remote: the token's own scope and expiry are the limit, since git, a
     command, has to read it.
+19. **Linked sessions are core, off by default, and for interactive
+    sessions only** ([Sessions that talk to each other](#sessions-that-talk-to-each-other)).
+    Core rather than an extension for the reason of Decision 18: the
+    extension points are not built, and this one would need a launcher
+    volume and an MCP configuration that they do not yet cover. A
+    candidate to move into an extension once they exist. Without links
+    the launcher and the managed settings render unchanged. A link is a
+    statement that two projects trust each other, and it costs telemetry
+    in those sessions, accepted on 2026-11-05 as the price of channels.
+    `--auto` stays out, because a session nobody watches should not be
+    driven by another one's messages.

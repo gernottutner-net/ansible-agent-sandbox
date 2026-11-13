@@ -41,6 +41,7 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
   - [Getting a project in](#getting-a-project-in)
   - [Repository tokens](#repository-tokens)
   - [Claude Code's own sandbox](#claude-codes-own-sandbox)
+  - [Sessions that talk to each other](#sessions-that-talk-to-each-other)
 - [Egress](#egress)
 - [Updating Claude Code](#updating-claude-code)
 - [What it protects, and what not](#what-it-protects-and-what-not)
@@ -60,7 +61,7 @@ guest over SSH, in this order, from the playbook `sandbox`.
 | `virtualbox_vm` | The VM from Debian's checksum-verified cloud image: a NAT and a host-only NIC with pinned MACs, a cloud-init seed with an `ansible` account and your key, headless start; snapshots with one rolling slot plus a baseline; teardown. Details in [docs/virtualbox.md](docs/virtualbox.md). |
 | `podman` | Podman with crun and pasta; a sudo-less user `agent` with a pinned subuid range, lingering, and delegated cgroup v2 limits. Asserts no sudo rights and no overlapping ranges. |
 | `egress_proxy` | Squid with a default-deny allowlist, and an nftables rule on `agent`'s uid that makes Squid the only way out. Probes an allowed host, a denied one and a bypass on every run. |
-| `agentbox` | The image (Debian, Node, a pinned Claude Code), Claude Code's managed settings, and the launcher `/usr/local/bin/agentbox`, the only supported way to start a session. With the playbook `git_token`, it also hands a project its [repository tokens](#repository-tokens). |
+| `agentbox` | The image (Debian, Node, a pinned Claude Code), Claude Code's managed settings, and the launcher `/usr/local/bin/agentbox`, the only supported way to start a session. With the playbook `git_token`, it also hands a project its [repository tokens](#repository-tokens). With links in the inventory, it also lets [sessions talk to each other](#sessions-that-talk-to-each-other). |
 
 Every role checks what it set up before it finishes, so a run that passes
 has been observed denying, not only configured to. The layers they build,
@@ -546,6 +547,64 @@ PID 1 is `/run/podman-init`, `claude` its child, and the command runs below
 a `bwrap --new-session …` pair. `[bwrap]` in brackets would be a zombie;
 the launcher's `--init` reaps them.
 
+### Sessions that talk to each other
+
+Off by default. With links in your inventory, Claude in one session can
+talk to Claude in another, with nobody typing:
+
+```yaml
+agentbox_peer_links:
+  - { from: alpha, to: beta }
+  - { from: beta, to: alpha }
+```
+
+Run `sandbox --tags agentbox`, and start both sessions, each in a terminal
+of its own, leaving them open:
+
+```bash
+agentbox alpha
+agentbox beta
+```
+
+Each prints that it is linked, and Claude Code asks you to confirm a
+warning about development channels, at every start: choose "I am using
+this for local development". Then tell one session what you want, for
+example to ask the session in `beta` something. It gets a tool `send`, and
+the other wakes up by itself.
+
+**Read this before you link two projects:**
+
+- **A link means the two projects trust each other.** If one session is
+  misled by something it read, it can steer the other, which holds that
+  project's files and repository tokens. Nothing can filter that.
+- **Telemetry is on in a linked session,** because Claude Code's channels
+  do not work without it. Squid still denies the telemetry host it was
+  seen trying; what goes to `api.anthropic.com` cannot be told.
+- **Channels are a research preview,** so an update of Claude Code may
+  break this. It was tested with Claude Code 2.1.317, not the older version
+  in the example policy.
+- **A project's own `.mcp.json` is off** in a linked session.
+
+Worth knowing:
+
+- Only plain `agentbox <project>` on a terminal is linked. `--auto`, `-p`
+  and other commands are not.
+- Sessions do not simply obey each other: a message is marked as not from
+  the user, and one may decline work its own user did not ask for. Tell
+  each session at its own prompt that it will work with the other.
+- `agentbox_peer_budget` (40) limits the messages between two projects.
+  When it is used up, both sessions are told, and nothing more gets through
+  until you start one of them again. A message to a closed session is
+  refused.
+- Changing links restarts the broker, so linked sessions have to be started
+  again.
+- Everything sent is in the journal, as `ansible` on the VM:
+  `sudo journalctl -u agentbox-peer`.
+
+Remove the links and run the play again, and everything is gone.
+[docs/design.md](docs/design.md#sessions-that-talk-to-each-other) has how
+it works, what it costs, and what was tested.
+
 ## Egress
 
 Everything `agent` sends goes through Squid, which allows only the hosts in
@@ -639,6 +698,9 @@ from the container lands in a sudo-less account. It does not:
 - **keep a repository token from commands.** git is a command, so every
   command Claude runs can read the project's token; its scope is the
   limit ([Repository tokens](#repository-tokens)).
+- **keep two linked projects apart.** That is what
+  [a link](#sessions-that-talk-to-each-other) gives up: a misled session
+  can steer the one it is linked to.
 - **prevent leaks to allowed hosts.** The allowlist says which
   organisations the agent may talk to, not what it may say: a gist on
   github.com is as reachable as the rest of github.com.

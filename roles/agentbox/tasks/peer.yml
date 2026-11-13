@@ -1,0 +1,117 @@
+---
+# Sessions that talk to each other: the broker on the VM and its policy, or
+# nothing at all when no links are set. See docs/design.md, "Sessions that
+# talk to each other". The launcher decides per session whether it is linked.
+
+- name: Record the projects in a link
+  ansible.builtin.set_fact:
+    _agentbox_peer_projects: >-
+      {{ ((agentbox_peer_links | map(attribute='from') | list)
+          + (agentbox_peer_links | map(attribute='to') | list))
+         | unique | sort }}
+
+- name: Check the links
+  ansible.builtin.assert:
+    that:
+      - item.from is defined and item.to is defined
+      - item.from is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - item.to is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - item.from != item.to
+    fail_msg: "Not a link between two project names: {{ item }}"
+    quiet: true
+  loop: "{{ agentbox_peer_links }}"
+
+- name: Remove the peer broker when no links are set
+  when: agentbox_peer_links | length == 0
+  block:
+    - name: Look for the peer broker's unit
+      ansible.builtin.stat:
+        path: /etc/systemd/system/agentbox-peer.service
+      register: _agentbox_peer_unit
+
+    - name: Stop the peer broker
+      ansible.builtin.systemd_service:
+        name: agentbox-peer.service
+        state: stopped
+        enabled: false
+      when: _agentbox_peer_unit.stat.exists
+
+    - name: Remove the peer broker's files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/agentbox-peer.service
+        - "{{ agentbox_peer_broker_path }}"
+        - "{{ agentbox_peer_links_path }}"
+        - "{{ agentbox_peer_mcp_path }}"
+
+    - name: Make systemd forget the peer broker
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when:
+        - _agentbox_peer_unit.stat.exists
+        - not ansible_check_mode
+
+- name: Install the peer broker when links are set
+  when: agentbox_peer_links | length > 0
+  block:
+    # socket(AF_UNIX) from a sandboxed command fails only thanks to this
+    # binary's seccomp filter; the broker enforces its rules regardless.
+    - name: Install the broker
+      ansible.builtin.copy:
+        src: agentbox-peer-broker
+        dest: "{{ agentbox_peer_broker_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart the peer broker
+
+    - name: Write the broker's policy
+      ansible.builtin.template:
+        src: peer-links.json.j2
+        dest: "{{ agentbox_peer_links_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        validate: python3 -m json.tool %s
+      notify: Restart the peer broker
+
+    # Not at Claude Code's path on the VM: the launcher mounts it into linked
+    # sessions only, because the file is exclusive and turns off a project's
+    # own .mcp.json.
+    - name: Write the MCP configuration of linked sessions
+      ansible.builtin.template:
+        src: managed-mcp.json.j2
+        dest: "{{ agentbox_peer_mcp_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        validate: python3 -m json.tool %s
+
+    - name: Write the broker's unit
+      ansible.builtin.template:
+        src: agentbox-peer.service.j2
+        dest: /etc/systemd/system/agentbox-peer.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart the peer broker
+
+    - name: Enable and start the broker
+      ansible.builtin.systemd_service:
+        name: agentbox-peer.service
+        state: started
+        enabled: true
+        daemon_reload: true
+      when: not ansible_check_mode
+
+    - name: Apply a changed broker before checking it
+      ansible.builtin.meta: flush_handlers
+
+    - name: Look for each project's socket
+      ansible.builtin.wait_for:
+        path: "{{ agentbox_peer_run_dir }}/{{ item }}/peer.sock"
+        timeout: 10
+      loop: "{{ _agentbox_peer_projects }}"
+      when: not ansible_check_mode

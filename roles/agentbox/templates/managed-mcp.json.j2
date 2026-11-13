@@ -1,0 +1,9 @@
+{{ {
+  'mcpServers': {
+    'peer': {
+      'type': 'stdio',
+      'command': 'socat',
+      'args': ['STDIO', 'UNIX-CONNECT:' ~ agentbox_peer_socket_target ~ '/peer.sock'],
+    },
+  },
+} | to_nice_json(indent=2) }}

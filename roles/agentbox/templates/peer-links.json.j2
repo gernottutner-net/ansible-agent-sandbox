@@ -1,0 +1,14 @@
+{#
+  The broker's policy, rendered from agentbox_peer_links: for every project in
+  a link, the projects it may send to.
+#}
+{% set ns = namespace(links={}) %}
+{% for project in _agentbox_peer_projects %}
+{%   set ns.links = ns.links | combine({project: agentbox_peer_links | selectattr('from', 'eq', project) | map(attribute='to') | unique | sort}) %}
+{% endfor %}
+{{ {
+  'links': ns.links,
+  'budget': agentbox_peer_budget | int,
+  'max_bytes': agentbox_peer_max_bytes | int,
+  'run_dir': agentbox_peer_run_dir,
+} | to_nice_json(indent=2) }}

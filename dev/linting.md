@@ -15,6 +15,7 @@ on `main`; a release needs them to pass, see
   - [Line length](#line-length)
   - [Skipped rules](#skipped-rules)
 - [Installing them](#installing-them)
+- [The peer broker](#the-peer-broker)
 
 ---
 
@@ -99,3 +100,17 @@ against OSV, is in
 On Python 3.10 the tree holds `filelock` 4.1.0 with 17 published
 advisories; one is reachable, and only when ansible-lint's cache falls
 back to `/tmp`, which it does not when run from a checkout you own.
+
+## The peer broker
+
+The broker is Python, which neither tool reads. Its tests need no VM, no
+container and no Claude, only Python 3:
+
+```bash
+python3 dev/test-peer-broker.py
+```
+
+It ends with `ok`. They start the broker on sockets in a temporary
+directory and talk MCP to it: the handshake, the sender, links, the limits,
+a second connection and the budget. What only a real session can show is in
+[docs/design.md, "What was tested"](../docs/design.md#what-was-tested-1).

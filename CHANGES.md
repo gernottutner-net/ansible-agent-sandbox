@@ -5,6 +5,25 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-05
+
+#### Added
+
+- Sessions that talk to each other. With `agentbox_peer_links` in the inventory, Claude in one session can talk to Claude in another, with nobody typing. New in the role `agentbox`: `agentbox-peer-broker`, a deterministic Python program in a hardened system unit, one Unix socket per project with the sender taken from the socket, a tool `send`, a message budget per pair of projects that only a person starting a session resets, every message in the journal; `tasks/peer.yml`, which also removes it all when the links are gone. The launcher links a plain interactive session in a project with a link: its socket, `managed-mcp.json`, Claude Code's development channels, no `DISABLE_TELEMETRY`. `--auto`, `-p` and other commands are not linked. `dev/test-peer-broker.py` tests the broker alone.
+- `docs/design.md`: new section "Sessions that talk to each other", with what was tested. README: new section of the same name, a line in "What it protects, and what not", and the `agentbox` row. `dev/linting.md`: "The peer broker". `docs/release-tests.md`: when to repeat it, and what is not covered. `examples/group_vars/agent_sandbox.yml`: the links, commented out.
+
+#### Changed
+
+- `docs/design.md`, "Core and extensions": linked sessions join repository tokens as a former extension candidate that is in the core.
+
+#### Decisions
+
+- Decision 19: linked sessions are core, off by default, and for interactive sessions only. Without links, the launcher and the managed settings render byte for byte as before, checked against the previous commit. A link costs telemetry in those sessions, because Claude Code's channels do not work with `DISABLE_TELEMETRY`; accepted as the price of channels.
+
+#### Notes
+
+- Tested on a VM with Claude Code 2.1.317, through the launcher: a conversation with nobody typing, the budget stopping it, `--auto` not linked, a sandboxed command refused at `socket(AF_UNIX)`, and the play's second run at `changed=0`, with and without links. Not with the pinned 2.1.284 of the example policy. No image change, so no new tag.
+
 ### 2026-11-03
 
 #### Added

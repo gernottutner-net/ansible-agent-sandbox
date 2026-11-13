@@ -60,3 +60,11 @@ agentbox_auto_claude_env:
 # npm's cache. Without it, npm install fails in the sandbox on ~/.npm/_cacache.
 agentbox_sandbox_allow_write:
   - "/home/{{ agentbox_image_user }}/.npm"
+
+# Sessions that talk to each other. Off without links. A link means the two
+# projects trust each other, and costs telemetry in those sessions: read the
+# README, "Sessions that talk to each other", first.
+# agentbox_peer_links:
+#   - { from: alpha, to: beta }
+#   - { from: beta, to: alpha }
+# agentbox_peer_budget: 40

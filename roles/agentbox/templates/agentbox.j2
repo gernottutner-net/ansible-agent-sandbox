@@ -17,6 +17,11 @@
 # from the environment or the command line, so no session can forget a limit.
 # Repository tokens the git_token playbook wrote for <project> are mounted
 # read-only; a session token is deleted when the session ends.
+{% if agentbox_peer_links %}
+# A plain interactive session in a project with a link is linked: it gets its
+# socket to the peer broker, and Claude Code's channels, which need telemetry
+# on. --auto, a -p run or any other command is not, and stays as it is.
+{% endif %}
 # See README.md, "The launcher", and docs/design.md, "Repository tokens".
 set -eu
 
@@ -40,6 +45,21 @@ fi
 project=$1
 shift
 
+{% if agentbox_peer_links %}
+# Before --auto rewrites the arguments: a linked session is claude with no
+# arguments, on a terminal, without --auto.
+linked=
+unlinked=1
+peers=
+if [ -z "$auto" ] && [ $# -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
+    case $project in
+{%   for name in _agentbox_peer_projects %}
+        {{ name | quote }}) linked=1; unlinked=; peers={{ agentbox_peer_links | selectattr('from', 'eq', name) | map(attribute='to') | unique | sort | join(' ') | quote }} ;;
+{%   endfor %}
+    esac
+fi
+
+{% endif %}
 # Autonomous: Claude Code without permission prompts. Extra arguments go to
 # claude, e.g. agentbox --auto <project> -p "<task>" for an unattended run.
 if [ -n "$auto" ]; then
@@ -131,6 +151,19 @@ if [ -d "$sessdir" ]; then
     done
 fi
 
+{% if agentbox_peer_links %}
+peer_socket=
+peer_config=
+if [ -n "$linked" ]; then
+    [ -S {{ agentbox_peer_run_dir | quote }}/"$project"/peer.sock ] \
+        || die "the peer broker is not running; see systemctl status agentbox-peer"
+    peer_socket=--volume={{ agentbox_peer_run_dir }}/$project:{{ agentbox_peer_socket_target }}
+    peer_config=--volume={{ agentbox_peer_mcp_path }}:{{ agentbox_managed_mcp_target }}:ro
+    set -- claude --dangerously-load-development-channels server:peer
+    echo "agentbox: linked session: sends to ${peers:-nobody}, telemetry on, confirm the channel dialog" >&2
+fi
+
+{% endif %}
 if [ -t 0 ] && [ -t 1 ]; then
     tty=--tty
 else
@@ -156,9 +189,17 @@ podman run --rm --interactive ${tty:+"$tty"} \
     --volume {{ (agentbox_managed_settings_path ~ ':' ~ agentbox_managed_settings_target ~ ':ro') | quote }} \
     ${permanent_tokens:+"$permanent_tokens"} \
     ${session_tokens:+"$session_tokens"} \
+{% if agentbox_peer_links %}
+    ${peer_socket:+"$peer_socket"} \
+    ${peer_config:+"$peer_config"} \
+{% endif %}
     --env CLAUDE_CONFIG_DIR={{ agentbox_claude_config_dir | quote }} \
 {% for name, value in agentbox_claude_env | dictsort %}
+{%   if agentbox_peer_links and name in agentbox_peer_unset_env %}
+    ${unlinked:+{{ ('--env=' ~ name ~ '=' ~ value) | quote }}} \
+{%   else %}
     --env {{ (name ~ '=' ~ value) | quote }} \
+{%   endif %}
 {% endfor %}
 {% for name, value in agentbox_auto_claude_env | dictsort %}
     ${auto:+{{ ('--env=' ~ name ~ '=' ~ value) | quote }}} \

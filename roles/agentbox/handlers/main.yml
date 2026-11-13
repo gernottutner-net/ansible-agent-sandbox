@@ -1,0 +1,8 @@
+---
+# Drops the connection of every linked session: they have to be started again.
+- name: Restart the peer broker
+  ansible.builtin.systemd_service:
+    name: agentbox-peer.service
+    state: restarted
+    daemon_reload: true
+  when: not ansible_check_mode

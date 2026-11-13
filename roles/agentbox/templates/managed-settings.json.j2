@@ -22,9 +22,13 @@
     become a filesystem deny for the sandboxed commands, git among them,
     which then sees an empty tmpfs in place of the tokens (seen 2026-11-02),
     so Claude's Read tool can read them, as every command can.
+  - With agentbox_peer_links set: the peer tool needs no approval, since the
+    link is that approval and a prompt would stall a conversation, and
+    managed-mcp.json in a linked session leaves the claude.ai connectors on.
+    Without links, neither key is rendered.
 #}
 {% set cfg = agentbox_claude_config_dir %}
-{{ {
+{% set settings = {
   'sandbox': {
     'enabled': true,
     'failIfUnavailable': true,
@@ -54,4 +58,11 @@
       'Edit(//run/agentbox/**)',
     ],
   },
-} | to_nice_json(indent=2) }}
+} %}
+{% if agentbox_peer_links %}
+{%   set settings = settings | combine({
+       'allowAllClaudeAiMcps': true,
+       'permissions': {'allow': ['mcp__peer__send']},
+     }, recursive=True) %}
+{% endif %}
+{{ settings | to_nice_json(indent=2) }}

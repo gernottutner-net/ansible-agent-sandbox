@@ -76,6 +76,11 @@ not a workaround. Every step is a command from the README or from
 | 8 | `sandbox` afterwards | `changed=0` |
 | 9 | `destroy --limit sandbox-vm -e destroy_confirm=yes`, on the running VM with its two snapshots | no VM, no registered disk or DVD, no machine folder, no build artefacts; the base image cache stays |
 
+A release that changes the peer broker, or Claude Code's version, also
+repeats the table in
+[docs/design.md, "What was tested"](design.md#what-was-tested-1), and
+`python3 dev/test-peer-broker.py` passes. It takes a login in two projects.
+
 Every playbook passes `--syntax-check` first. A release that changes a
 role an existing install runs also gets the
 [upgrade test](#upgrade-of-an-existing-install): `sandbox --check --diff`
@@ -428,6 +433,9 @@ No bug was found. Two things worth knowing:
   tested only against a stand-in `podman`; a self-hosted GitLab in a
   release test, tested only by hand
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
+- Linked sessions: a broker restart with sessions open, and Claude Code
+  2.1.284, the version of the example policy; see
+  [docs/design.md, "What is open"](design.md#what-is-open).
 - `--check --diff` showing an image rebuild: finding 3 of the
   [release test of v0.2.0](#findings), not fixed.
 - Why Claude could write `.git/config` in the release test of `v0.3.0`
