@@ -22,6 +22,12 @@
     become a filesystem deny for the sandboxed commands, git among them,
     which then sees an empty tmpfs in place of the tokens (seen 2026-11-02),
     so Claude's Read tool can read them, as every command can.
+  - Hooks only from these managed settings, which define none: a mod Claude
+    writes would otherwise turn on without asking in bypass and auto mode
+    and run outside the Bash sandbox (seen with 2.1.323). Built-in plugins
+    still load.
+  - Interactive sessions start in manual mode, not auto mode, which became
+    Claude Code's default; --auto still runs in bypass mode.
   - With agentbox_peer_links set: the peer tool needs no approval, since the
     link is that approval and a prompt would stall a conversation, and
     managed-mcp.json in a linked session leaves the claude.ai connectors on.
@@ -49,7 +55,9 @@
       ],
     },
   },
+  'allowManagedHooksOnly': true,
   'permissions': {
+    'defaultMode': 'default',
     'deny': [
       'Read(/' ~ cfg ~ '/.credentials.json)',
       'Edit(/' ~ cfg ~ '/.credentials.json)',

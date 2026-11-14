@@ -8,7 +8,7 @@ sandbox_user: agent
 
 # The image is tagged, never `latest`: a rebuild is a visible tag bump. The
 # role refuses to rebuild an existing tag from a changed Containerfile.
-sandbox_image_tag: "0.2.0"
+sandbox_image_tag: "0.4.0"
 
 # Run limits, baked into the launcher so no invocation can forget one.
 # --memory-swap is set to the same value, which disables swap.
@@ -24,7 +24,7 @@ agentbox_node_major_version: 22
 
 # Pinned, so a rebuild installs what the tag says rather than whatever npm
 # serves that day. Updating Claude Code: bump this and sandbox_image_tag.
-agentbox_claude_code_version: "2.1.284"
+agentbox_claude_code_version: "2.1.323"
 
 agentbox_apt_packages:
   - ca-certificates

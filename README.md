@@ -386,7 +386,7 @@ agentbox <project> bash         # a shell instead, e.g. to clone first
   `agentbox-<project>`, and a second one is refused. Sessions in different
   projects run side by side; two at once, each cloning a repository and
   running `npm install`, peaked at about 310 MB each of their 2 GiB, on a
-  6 GB VM.
+  6 GB VM; about 240 MB each with Claude Code 2.1.323, on a 4 GB VM.
 - Everything outside `/work` and Claude Code's state is gone when the
   session ends (`--rm`). A lost terminal ends the session too: on a
   dropped SSH connection the launcher stops the container. For a run that
@@ -395,6 +395,11 @@ agentbox <project> bash         # a shell instead, e.g. to clone first
   environment or the command line: `--cap-drop=ALL`,
   `no-new-privileges`, the memory, CPU and process limits, no swap, the
   read-only managed settings. No invocation can forget one.
+- A session without `--auto` starts in Claude Code's manual mode: Claude
+  asks before anything its sandbox does not cover. Claude Code's own
+  default is now auto mode, where a classifier decides; the managed
+  settings set manual mode instead. Shift+Tab switches a session to auto
+  mode.
 
 ### Autonomous mode
 
@@ -420,7 +425,8 @@ quietly for a while before it gives up.
 ### Logging in
 
 The first session in a project asks for the Claude login: open the URL it
-prints in a browser and paste the code back. The login is kept per
+prints in a browser and paste the code back. Then Claude Code asks whether
+you trust the folder; its default answer is *No, exit*, so choose *Yes*. The login is kept per
 project, so projects never see each other's login or transcripts.
 
 Optional, an API key instead: create a Podman secret `anthropic_api_key` as
@@ -531,6 +537,12 @@ it off or widen it. For the commands Claude runs:
 - they cannot read the login;
 - they reach only the hosts on `egress_allowlist`, the same list as Squid.
 
+No hook or mod loads unless it comes from the managed settings, which
+define none: not the user's, not a project's or a plugin's, and not a mod
+Claude writes. Such a mod would otherwise turn on without asking in
+`--auto` and in auto mode, and run outside the sandbox, where it can read
+the login.
+
 Deny rules keep Claude's Read and Edit tools off the login and the
 settings. Commands you type yourself at Claude Code's `!` prompt are not
 sandboxed.
@@ -582,8 +594,8 @@ the other wakes up by itself.
   do not work without it. Squid still denies the telemetry host it was
   seen trying; what goes to `api.anthropic.com` cannot be told.
 - **Channels are a research preview,** so an update of Claude Code may
-  break this. It was tested with Claude Code 2.1.317, not the older version
-  in the example policy.
+  break this. It was tested with Claude Code 2.1.323, the version in the
+  example policy.
 - **A project's own `.mcp.json` is off** in a linked session.
 
 Worth knowing:
@@ -638,7 +650,7 @@ The image holds a pinned Claude Code and never updates itself. Change both
 values in `group_vars/agent_sandbox.yml`:
 
 ```yaml
-sandbox_image_tag: "0.2.0-cc2.x.y"         # a new tag, never reuse one
+sandbox_image_tag: "0.4.0-cc2.x.y"         # a new tag, never reuse one
 agentbox_claude_code_version: "2.x.y"
 ```
 
@@ -721,14 +733,7 @@ Not yet tested, and not claimed:
 2. **`ANTHROPIC_API_KEY` withheld by name.** The environment was tested with a
    variable of another name; whether Claude Code keeps its API key variable
    from its commands is not known. Assume it does not.
-3. **Mods Claude writes, in `--auto`.** From Claude Code 2.1.321, Claude's
-   release notes say a mod Claude writes turns on without asking in
-   `--auto`, despite the managed settings. It runs outside the inner
-   sandbox. Whether the managed settings can keep it off is not known.
-   The example policy's version and the newest tested are both older, so
-   it does not apply yet; it needs an answer before the pin moves to
-   2.1.321 or later.
-4. **Linked sessions with logins other than Pro.** Team, Enterprise and
+3. **Linked sessions with logins other than Pro.** Team, Enterprise and
    API-key logins probably need `channelsEnabled: true` in the managed
    settings for channels, which the collection does not set. Only a Pro
    login was tested.

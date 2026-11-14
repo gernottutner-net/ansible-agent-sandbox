@@ -45,9 +45,9 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:
   <text class="h" x="36" y="152">Controller</text>
   <text class="sub" x="36" y="170">the inventory pins both</text>
   <text class="ms" x="36" y="196">sandbox_image_tag:</text>
-  <text class="ms c-box" x="36" y="211">  "0.2.0"</text>
+  <text class="ms c-box" x="36" y="211">  "0.4.0"</text>
   <text class="ms" x="36" y="231">agentbox_claude_code_version:</text>
-  <text class="ms c-box" x="36" y="246">  "2.1.284"</text>
+  <text class="ms c-box" x="36" y="246">  "2.1.323"</text>
   <text class="mu" x="36" y="266">bumped together</text>
   <text class="ms" x="36" y="296">playbook sandbox</text>
   <text class="ms" x="36" y="311">--tags agentbox</text>
@@ -95,14 +95,14 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:
   <rect class="frame b-box" x="265" y="330" width="480" height="235" rx="7"/>
   <text class="h" x="281" y="352">podman build, rootless, as agent</text>
   <text class="tag c-box" x="729" y="352">agentbox</text>
-  <text class="sub" x="281" y="369">tagged localhost/agentbox:0.2.0, labelled with the build hash</text>
+  <text class="sub" x="281" y="369">tagged localhost/agentbox:0.4.0, labelled with the build hash</text>
   <text class="m" x="281" y="394">FROM debian:trixie-slim</text>
   <text class="ms c-egr" x="729" y="394" text-anchor="end">docker.io</text>
   <text class="m" x="281" y="416">apt-get install git ripgrep bubblewrap socat …</text>
   <text class="ms c-egr" x="729" y="416" text-anchor="end">.debian.org</text>
   <text class="m" x="281" y="438">NodeSource key (.asc), nodejs 22</text>
   <text class="ms c-egr" x="729" y="438" text-anchor="end">deb.nodesource.com</text>
-  <text class="m c-box bold" x="281" y="460">npm install -g @anthropic-ai/claude-code@2.1.284</text>
+  <text class="m c-box bold" x="281" y="460">npm install -g @anthropic-ai/claude-code@2.1.323</text>
   <text class="ms c-egr" x="729" y="460" text-anchor="end">.npmjs.org</text>
   <text class="m c-box bold" x="281" y="482">ENV DISABLE_AUTOUPDATER=1</text>
   <text class="m" x="281" y="504">user dev 1000:1000, git credential helper</text>
@@ -147,10 +147,10 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:
   <text class="h" x="281" y="627">agent's image storage</text>
   <text class="tag c-pod" x="729" y="627">podman</text>
   <rect class="frame b-box" x="281" y="640" width="448" height="30" rx="5"/>
-  <text class="m bold" x="293" y="660">localhost/agentbox:0.2.0</text>
-  <text class="sub small" x="717" y="659" text-anchor="end">Claude Code 2.1.284 · current</text>
+  <text class="m bold" x="293" y="660">localhost/agentbox:0.4.0</text>
+  <text class="sub small" x="717" y="659" text-anchor="end">Claude Code 2.1.323 · current</text>
   <rect class="frame b-mu" x="281" y="680" width="448" height="30" rx="5"/>
-  <text class="m sub" x="293" y="700">localhost/agentbox:0.1.0</text>
+  <text class="m sub" x="293" y="700">localhost/agentbox:0.2.0</text>
   <text class="sub small" x="717" y="699" text-anchor="end">older build, kept for going back</text>
 </g>
 <line class="l-mu" x1="745" y1="665" x2="772" y2="665" marker-end="url(#ah-mu)"/>
@@ -161,7 +161,7 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:
   <text class="h" x="791" y="627">Checked once, by the role</text>
   <text class="m" x="791" y="649">User = dev, uid 1000</text>
   <text class="m" x="791" y="666">no *_proxy in Env</text>
-  <text class="m" x="791" y="683">claude --version = 2.1.284</text>
+  <text class="m" x="791" y="683">claude --version = 2.1.323</text>
   <text class="m" x="791" y="700">credential helper = agentbox</text>
   <text class="mu" x="791" y="717">a wrong image fails the run</text>
 </g>
@@ -195,17 +195,17 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:
   <rect class="frame b-mu" x="20" y="918" width="290" height="92" rx="7"/>
   <text class="h" x="36" y="940">1 · Bump both values</text>
   <text class="ms" x="36" y="960">agentbox_claude_code_version: "2.x.y"</text>
-  <text class="ms" x="36" y="976">sandbox_image_tag: "0.2.0-cc2.x.y"</text>
+  <text class="ms" x="36" y="976">sandbox_image_tag: "0.4.0-cc2.x.y"</text>
   <text class="mu" x="36" y="996">a new tag, never a reused one</text>
   <rect class="frame b-mu" x="340" y="918" width="290" height="92" rx="7"/>
   <text class="h" x="356" y="940">2 · Run the role</text>
   <text class="ms" x="356" y="960">playbook sandbox --tags agentbox</text>
-  <text class="sub" x="356" y="978">0.2.0-cc2.x.y is not in storage: build it</text>
+  <text class="sub" x="356" y="978">0.4.0-cc2.x.y is not in storage: build it</text>
   <text class="sub" x="356" y="995">and check the new version</text>
   <rect class="frame b-mu" x="660" y="918" width="290" height="92" rx="7"/>
-  <text class="h" x="676" y="940">3 · Launcher names 0.2.0-cc2.x.y</text>
+  <text class="h" x="676" y="940">3 · Launcher names 0.4.0-cc2.x.y</text>
   <text class="sub" x="676" y="960">re-rendered with the new tag</text>
-  <text class="sub" x="676" y="977">0.2.0 stays in storage</text>
+  <text class="sub" x="676" y="977">0.4.0 stays in storage</text>
   <text class="sub" x="676" y="994">a running session keeps its image</text>
   <rect class="frame b-mu" x="980" y="918" width="290" height="92" rx="7"/>
   <text class="h" x="996" y="940">4 · Next session runs it</text>

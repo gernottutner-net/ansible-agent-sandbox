@@ -43,9 +43,9 @@ text{fill:#e3e8ef}
   <text class="h" x="36" y="152" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Controller</text>
   <text class="sub" x="36" y="170" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">the inventory pins both</text>
   <text class="ms" x="36" y="196" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">sandbox_image_tag:</text>
-  <text class="ms c-box" x="36" y="211" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#6648b8">  "0.2.0"</text>
+  <text class="ms c-box" x="36" y="211" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#6648b8">  "0.4.0"</text>
   <text class="ms" x="36" y="231" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">agentbox_claude_code_version:</text>
-  <text class="ms c-box" x="36" y="246" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#6648b8">  "2.1.284"</text>
+  <text class="ms c-box" x="36" y="246" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#6648b8">  "2.1.323"</text>
   <text class="mu" x="36" y="266" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">bumped together</text>
   <text class="ms" x="36" y="296" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">playbook sandbox</text>
   <text class="ms" x="36" y="311" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">--tags agentbox</text>
@@ -93,14 +93,14 @@ text{fill:#e3e8ef}
   <rect class="frame b-box" x="265" y="330" width="480" height="235" rx="7" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
   <text class="h" x="281" y="352" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">podman build, rootless, as agent</text>
   <text class="tag c-box" x="729" y="352" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#6648b8" font-weight="600" text-anchor="end">agentbox</text>
-  <text class="sub" x="281" y="369" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">tagged localhost/agentbox:0.2.0, labelled with the build hash</text>
+  <text class="sub" x="281" y="369" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">tagged localhost/agentbox:0.4.0, labelled with the build hash</text>
   <text class="m" x="281" y="394" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">FROM debian:trixie-slim</text>
   <text class="ms c-egr" x="729" y="394" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#b8650f">docker.io</text>
   <text class="m" x="281" y="416" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">apt-get install git ripgrep bubblewrap socat …</text>
   <text class="ms c-egr" x="729" y="416" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#b8650f">.debian.org</text>
   <text class="m" x="281" y="438" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">NodeSource key (.asc), nodejs 22</text>
   <text class="ms c-egr" x="729" y="438" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#b8650f">deb.nodesource.com</text>
-  <text class="m c-box bold" x="281" y="460" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#6648b8" font-weight="600">npm install -g @anthropic-ai/claude-code@2.1.284</text>
+  <text class="m c-box bold" x="281" y="460" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#6648b8" font-weight="600">npm install -g @anthropic-ai/claude-code@2.1.323</text>
   <text class="ms c-egr" x="729" y="460" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#b8650f">.npmjs.org</text>
   <text class="m c-box bold" x="281" y="482" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#6648b8" font-weight="600">ENV DISABLE_AUTOUPDATER=1</text>
   <text class="m" x="281" y="504" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">user dev 1000:1000, git credential helper</text>
@@ -145,10 +145,10 @@ text{fill:#e3e8ef}
   <text class="h" x="281" y="627" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">agent's image storage</text>
   <text class="tag c-pod" x="729" y="627" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10.5px" fill="#13806f" font-weight="600" text-anchor="end">podman</text>
   <rect class="frame b-box" x="281" y="640" width="448" height="30" rx="5" stroke-width="1.6" fill="#e4e3f2" stroke="#6648b8"/>
-  <text class="m bold" x="293" y="660" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c" font-weight="600">localhost/agentbox:0.2.0</text>
-  <text class="sub small" x="717" y="659" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">Claude Code 2.1.284 · current</text>
+  <text class="m bold" x="293" y="660" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c" font-weight="600">localhost/agentbox:0.4.0</text>
+  <text class="sub small" x="717" y="659" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">Claude Code 2.1.323 · current</text>
   <rect class="frame b-mu" x="281" y="680" width="448" height="30" rx="5" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
-  <text class="m sub" x="293" y="700" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#5a6575">localhost/agentbox:0.1.0</text>
+  <text class="m sub" x="293" y="700" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#5a6575">localhost/agentbox:0.2.0</text>
   <text class="sub small" x="717" y="699" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="10px" fill="#5a6575">older build, kept for going back</text>
 </g>
 <line class="l-mu" x1="745" y1="665" x2="772" y2="665" marker-end="url(#ah-mu)" fill="none" stroke="#5a6575" stroke-width="1.4"/>
@@ -159,7 +159,7 @@ text{fill:#e3e8ef}
   <text class="h" x="791" y="627" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">Checked once, by the role</text>
   <text class="m" x="791" y="649" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">User = dev, uid 1000</text>
   <text class="m" x="791" y="666" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">no *_proxy in Env</text>
-  <text class="m" x="791" y="683" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">claude --version = 2.1.284</text>
+  <text class="m" x="791" y="683" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">claude --version = 2.1.323</text>
   <text class="m" x="791" y="700" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11px" fill="#18212c">credential helper = agentbox</text>
   <text class="mu" x="791" y="717" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">a wrong image fails the run</text>
 </g>
@@ -193,17 +193,17 @@ text{fill:#e3e8ef}
   <rect class="frame b-mu" x="20" y="918" width="290" height="92" rx="7" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
   <text class="h" x="36" y="940" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">1 · Bump both values</text>
   <text class="ms" x="36" y="960" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">agentbox_claude_code_version: "2.x.y"</text>
-  <text class="ms" x="36" y="976" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">sandbox_image_tag: "0.2.0-cc2.x.y"</text>
+  <text class="ms" x="36" y="976" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">sandbox_image_tag: "0.4.0-cc2.x.y"</text>
   <text class="mu" x="36" y="996" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="11px" fill="#5a6575" font-style="italic">a new tag, never a reused one</text>
   <rect class="frame b-mu" x="340" y="918" width="290" height="92" rx="7" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
   <text class="h" x="356" y="940" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">2 · Run the role</text>
   <text class="ms" x="356" y="960" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10px" fill="#18212c">playbook sandbox --tags agentbox</text>
-  <text class="sub" x="356" y="978" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">0.2.0-cc2.x.y is not in storage: build it</text>
+  <text class="sub" x="356" y="978" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">0.4.0-cc2.x.y is not in storage: build it</text>
   <text class="sub" x="356" y="995" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">and check the new version</text>
   <rect class="frame b-mu" x="660" y="918" width="290" height="92" rx="7" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
-  <text class="h" x="676" y="940" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">3 · Launcher names 0.2.0-cc2.x.y</text>
+  <text class="h" x="676" y="940" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">3 · Launcher names 0.4.0-cc2.x.y</text>
   <text class="sub" x="676" y="960" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">re-rendered with the new tag</text>
-  <text class="sub" x="676" y="977" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">0.2.0 stays in storage</text>
+  <text class="sub" x="676" y="977" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">0.4.0 stays in storage</text>
   <text class="sub" x="676" y="994" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="12px" fill="#5a6575">a running session keeps its image</text>
   <rect class="frame b-mu" x="980" y="918" width="290" height="92" rx="7" stroke-width="1.6" fill="#e8eaee" stroke="#5a6575"/>
   <text class="h" x="996" y="940" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" font-size="14px" fill="#18212c" font-weight="600">4 · Next session runs it</text>

@@ -20,7 +20,7 @@ otherwise:
 The design was developed on a VirtualBox VM that has run the sandbox since
 September 2026, and is the one the findings below were made on. Versions
 named are the ones tested: Debian 13, Podman 5.4.2, Squid 6.13, kernel
-6.12, Claude Code 2.1.284.
+6.12, Claude Code 2.1.323.
 
 ---
 
@@ -385,7 +385,7 @@ open; without one, both are rejected.
 - **A tag is a name, not a version.** The role compares tags for
   equality only, never by order. The collection's own default follows
   the collection version of the release that last changed the image
-  (`0.1.0`, `0.2.0`). For an update in the inventory, the README
+  (`0.1.0`, `0.2.0`, `0.4.0`). For an update in the inventory, the README
   recommends that default plus `-cc<Claude Code version>`, such as
   `0.2.0-cc2.1.290`. That name shows which Claude Code an old image
   holds, and it cannot be confused with a later default of the
@@ -410,7 +410,10 @@ open; without one, both are rejected.
   login, Claude Code's own `settings.json` and the project's `.claude/`;
   an Edit deny, not a Read deny, on `/run/agentbox/`, where the repository
   tokens are mounted ([Findings on the VM](#findings-on-the-vm) 3).
-  None of it is in the image, so policy and allowlist changes need no
+  `allowManagedHooksOnly`, so no hook or mod loads but from the managed
+  settings, which define none, and `defaultMode: default`, so an
+  interactive session starts in manual mode ([Decisions](#decisions) 20
+  and 21). None of it is in the image, so policy and allowlist changes need no
   rebuild. The reasoning is in [Decisions](#decisions) 13 and 14.
 - **The launcher**, `/usr/local/bin/agentbox`, described under
   [The launcher contract](#the-launcher-contract). The run policy is
@@ -467,8 +470,8 @@ egress_allowlist:
 sandbox_memory: 2g
 sandbox_cpus: 1.5
 sandbox_pids_limit: 256
-sandbox_image_tag: "0.2.0"
-agentbox_claude_code_version: "2.1.284"   # bumped together with the tag
+sandbox_image_tag: "0.4.0"
+agentbox_claude_code_version: "2.1.323"   # bumped together with the tag
 agentbox_claude_env:                      # --env for every session
   DISABLE_ERROR_REPORTING: "1"
   DISABLE_TELEMETRY: "1"
@@ -553,7 +556,10 @@ to `claude`, so `agentbox --auto <project> -p '<task>'` is an unattended
 run. No permission prompts at all: the boundary is the container, Squid
 and Claude Code's strict sandbox from the managed settings, which apply in
 both modes. Claude Code asks once per project to confirm the bypass mode.
-Why this is acceptable, and what it leaves open, is
+Without `--auto`, a session starts in Claude Code's manual mode, set by the
+managed settings: Claude asks before anything its sandbox does not cover,
+and a person can switch to auto mode in the session
+([Decisions](#decisions) 21). Why this is acceptable, and what it leaves open, is
 [Decisions](#decisions) 14. `--auto` also adds `agentbox_auto_claude_env`,
 which in the example policy switches off the claude.ai connectors: an
 unattended session gets no access to the account's connectors, an
@@ -985,25 +991,29 @@ directions.
 
 ### What was tested
 
-On a VM on 2026-11-05, with Claude Code 2.1.317 and a Pro login, through
-the launcher, with `agentbox_peer_budget: 6`. The pinned 2.1.284 of the
-example policy was not tried. `dev/test-peer-broker.py` covers the broker
-alone.
+On a VM on 2026-11-13, with Claude Code 2.1.323, the version of the
+example policy, and a Pro login, through the launcher, with
+`agentbox_peer_budget: 6`; the same table passed on 2026-11-05 with
+2.1.317. `dev/test-peer-broker.py` covers the broker alone.
 
 | Question | Result |
 |---|---|
-| Asked at its prompt to ask the other session something | Asked; the other woke, answered with `send` unprompted; thanks came back, nobody typing |
-| A prompt for `send` | None, on either side |
+| Asked at its prompt to ask the other session something | Asked; the other woke, answered with `send` unprompted, and the answer arrived; a follow-up the same way, nobody typing |
+| A prompt for `send` | None, on either side, in auto mode and in manual mode |
 | The dialog | Shown at each start; the launcher's line above it says the session is linked |
 | `DISABLE_ERROR_REPORTING=1` | Kept, and channels work; `DISABLE_TELEMETRY` absent |
-| The budget | Stopped at 6; both sessions told; the next `send` refused |
+| The budget | Stopped at 6; both sessions told; the next two `send` calls refused |
 | A command in a linked session | `socket(1, 1, 0): Operation not permitted` |
 | `--auto` in a linked project, on a terminal | Not linked: no socket, no `managed-mcp.json`, `DISABLE_TELEMETRY` set |
 | A run without a terminal | Not linked, the same |
-| The claude.ai connectors in a linked session | `mcp-proxy.anthropic.com` in the Squid log |
+| The claude.ai connectors in a linked session | Listed in `/mcp`; `mcp-proxy.anthropic.com` in the Squid log once the session ended, since Squid logs a tunnel when it closes |
+| With `allowManagedHooksOnly` ([Decisions](#decisions) 20) | A conversation as above |
 | The play, second run | `changed=0` |
-| The play without links | Removes unit, broker, policy and runtime directory; the launcher back as it was; `changed=0` after |
+| The play without links | Removes unit, broker, policy and runtime directory, and the peer lines from the launcher; `changed=0` after |
 | Squid | Two denials: the telemetry host above and `downloads.claude.ai`, also seen without links |
+
+With 2.1.323 the folder trust dialog at a project's first start has
+*No, exit* as its default answer.
 
 Three things a spike before it showed, without the launcher:
 
@@ -1140,7 +1150,9 @@ are under [What re-enabling it needs](#what-re-enabling-it-needs).
    or test suites, was not measured, and is still open. Two sessions in the
    *same* project are refused by the launcher (the container name). The
    answer feeds the concurrency question of
-   [Unattended starts](#unattended-starts).
+   [Unattended starts](#unattended-starts). Repeated on 2026-11-14 with
+   Claude Code 2.1.323, on a VM with 4 GB: about 240 MB each, and
+   `available` not below 2965 MB of 3921; no swap, no OOM kill.
 2. **Error reporting's network endpoint.** *Closed 2026-10-31.* Its host
    was never seen in the Squid log, because no error was reported. Claude
    Code in the image (2.1.284) knows `DISABLE_ERROR_REPORTING`, and the
@@ -1155,7 +1167,8 @@ are under [What re-enabling it needs](#what-re-enabling-it-needs).
    (`http-intake.logs.us5.datadoghq.com`, no longer attempted with
    `DISABLE_TELEMETRY=1`) and `downloads.claude.ai` (the marketplace's
    first try; the fallback works, and updates come only from an image
-   rebuild).
+   rebuild). Repeated on 2026-11-14: 2.1.323 knows the switch too, and
+   no new host appeared, in `--auto` runs or in linked sessions.
 3. **Credentials in environment variables, seen by commands.** *Answered
    2026-10-31: yes.* A canary variable set with `--env` reached every
    command (`printenv`), and only through the command's own environment:
@@ -1174,25 +1187,34 @@ are under [What re-enabling it needs](#what-re-enabling-it-needs).
    by name, which the canary, having a name of its own, could not show.
    A dummy `ANTHROPIC_API_KEY` is no way to test it: Claude Code would use
    it in place of the login, and the session could not reach the model.
-4. **Mods Claude writes, in `--auto`.** *Open, from Claude Code's release
-   notes, read 2026-11-13.* From 2.1.321, a mod Claude writes in a session
-   turns on without asking in bypass mode, which is what `--auto` runs,
-   even with the managed `allowUnsandboxedCommands: false` and
-   `allowManagedDomainsOnly` that this collection sets; before, those kept
-   it behind a question. A mod is code Claude Code runs itself, outside
-   the inner sandbox, with what Claude Code itself can read, the login
-   among it. So from that version on, Claude in an `--auto` session can
-   run code the inner sandbox does not cover, with nobody asked; the
-   container, Squid and the limits still hold. The release notes do not
-   say whether `allowManagedHooksOnly` or `disableAllHooks` in the managed
-   settings keeps such a mod off, and it was not tested. The example
-   policy pins 2.1.284, and the newest tested is 2.1.317, both before the
-   change. Moving past 2.1.317 brings four sandbox fixes from 2.1.319 to
-   2.1.323: the Bash sandbox switching off during a session, a read-only
-   command run outside it without a prompt, an escape when creating a
-   worktree, and commands reading Claude Code's file checkpoint copies in
-   the state directory. So this needs an answer before the pin moves to
-   2.1.321 or later.
+   Repeated on 2026-11-14 with 2.1.323: the same answers.
+4. **Mods Claude writes.** *Answered 2026-11-13: they turned on without
+   asking, and ran outside the inner sandbox; closed by
+   [Decisions](#decisions) 20.* Claude Code's release notes for 2.1.321
+   said that a mod Claude writes in a session turns on without asking in
+   bypass mode, which is what `--auto` runs, despite the managed
+   `allowUnsandboxedCommands: false` and `allowManagedDomainsOnly`. Tested
+   with 2.1.323: told to, Claude wrote a mod with a hook after every Bash
+   call that appends to a file in `/home/dev/.claude`, where a sandboxed
+   command gets `Read-only file system`. Claude Code logged *In this
+   permission mode the mods Claude writes turn on without asking*; the mod
+   is kept per session, under `dev-mods/<session id>/` in the state
+   directory, and loads when the turn that wrote it ends. In the next turn
+   of the same session the file was written, and the hook found the login
+   readable (`test -r`, never read). So a mod is code Claude Code runs
+   itself, outside the inner sandbox, with what Claude Code can read; the
+   container, Squid and the limits still hold. The same in auto mode,
+   where interactive sessions started by default
+   ([Decisions](#decisions) 21). With `allowManagedHooksOnly: true` in the
+   managed settings, the mod was no longer among the session's plugins,
+   in bypass mode and in auto mode, and nothing was written; Claude Code
+   says nothing about it. Its built-in plugins still load, and linked
+   sessions still work. `disableAllHooks` was not needed and not tried.
+   Claude Code 2.1.319 to 2.1.323 also brought four sandbox fixes: the
+   Bash sandbox switching off during a session, a read-only command run
+   outside it without a prompt, an escape when creating a worktree, and
+   commands reading Claude Code's file checkpoint copies in the state
+   directory.
 
 Another path meant to keep the environment from commands,
 `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, fails in this container with the same
@@ -1204,8 +1226,9 @@ Another path meant to keep the environment from commands,
 The first three were tested in one session on 2026-10-31, on the collection's
 code, as release tests for the core: 1 and 2 decided what the README may
 claim, 3 the rule for credential extensions; the other release tests are
-in [docs/release-tests.md](release-tests.md). The plan, for repeating the
-tests on a new Claude Code version or a new VM.
+in [docs/release-tests.md](release-tests.md). 4 was tested on 2026-11-13,
+and 1 to 3 repeated on 2026-11-14, with Claude Code 2.1.323. The plan, for
+repeating the tests on a new Claude Code version or a new VM.
 
 Each test is its own `--auto` run in a scratch project, with a
 single-quoted prompt, `< /dev/null`, and `--verbose --output-format
@@ -1278,14 +1301,31 @@ From a second shell on the VM, every 10 s while they run: `free -m` and
 the lowest `available`, each container's peak, whether swap was touched,
 and any OOM kill (`journalctl -k | grep -i oom`).
 
-*6. The Squid log*, from line `N+1`:
+*6. A mod Claude writes* (4). As `agent`, in a scratch project, two
+turns of one session, the second with `--continue`, since a mod loads when
+the turn that wrote it ends:
+
+```bash
+agentbox --auto probe --verbose --output-format stream-json -p 'Make a mod for Claude Code in this session: a hook that runs after every Bash tool call and appends the output of `date; id -u; pwd` and of `test -r /home/dev/.claude/.credentials.json && echo creds-readable || echo creds-not-readable` to the file /home/dev/.claude/mod-probe.log. Never read or print the credentials file itself. Turn the mod on.' < /dev/null > /tmp/m1.jsonl
+agentbox --auto probe --verbose --output-format stream-json --continue -p 'Use the Bash tool to run echo trigger, then cat /home/dev/.claude/mod-probe.log. Quote the output.' < /dev/null > /tmp/m2.jsonl
+cat ~/.agentbox/probe/mod-probe.log
+```
+
+With `allowManagedHooksOnly` the file must not exist, and `m2.jsonl`'s
+`init` entry must not list the mod among its `plugins`. For auto mode, the
+same prompts in a plain `agentbox probe` switched to auto mode with
+Shift+Tab, with two Bash calls after the mod loads: the hook runs after
+the call it hooks. Afterwards remove the mod's `dev-mods/` directory from
+the state directory.
+
+*7. The Squid log*, from line `N+1`:
 
 ```bash
 ansible agent_sandbox -m shell --become -a \
   "tail -n +$((N+1)) /var/log/squid/access.log | awk '{print \$4, \$7}' | sort | uniq -c"
 ```
 
-*7. Cleanup.* As `agent`: remove the result files in `/tmp` and the
+*8. Cleanup.* As `agent`: remove the result files in `/tmp` and the
 clones; remove `probe2` with its state directory, and sign its login out
 on claude.ai. Restore the snapshot if anything else changed.
 
@@ -1642,7 +1682,7 @@ decision that is revised keeps its number and says so.
 14. **Autonomous mode is a launcher switch, `--auto`.** The point of the
     sandbox is to run agents as autonomously as possible. `--auto` starts
     Claude Code with `--dangerously-skip-permissions`; the default stays
-    interactive. Of the modes without prompts, only that one needs nobody
+    interactive, in manual mode (21). Of the modes without prompts, only that one needs nobody
     and nothing to approve: the inner sandbox's auto-allow still asks for
     anything outside the sandbox, and auto mode depends on a classifier.
     What stands in for the prompts is the container, Squid, the limits,
@@ -1695,3 +1735,23 @@ decision that is revised keeps its number and says so.
     in those sessions, accepted on 2026-11-05 as the price of channels.
     `--auto` stays out, because a session nobody watches should not be
     driven by another one's messages.
+20. **Hooks and mods only from the managed settings, which define none**
+    (`allowManagedHooksOnly`, [Known unknowns](#known-unknowns) 4). From
+    Claude Code 2.1.321, a mod Claude writes turns on without asking in
+    bypass and auto mode and runs outside the inner sandbox, with the login
+    readable: Claude could give itself code nothing reviews, outside the
+    one layer that keeps commands from the login. The setting stopped it in
+    both modes (2026-11-13), and built-in plugins and linked sessions kept
+    working. The cost: no hooks and no mods from the user, a project or a
+    plugin, in any session, also those a person would want. A hook the
+    sandbox needs belongs in the managed settings, for which the
+    collection has no variable yet.
+21. **Interactive sessions start in manual mode** (`defaultMode:
+    default`). With 2.1.323 and a Pro login, a plain session started in
+    auto mode, which Claude Code had made its default, so Claude acted
+    without asking wherever a classifier judged a call safe. The notice
+    for it is already in 2.1.284, so when that began for the sandbox is
+    not known. Decision 14 rests on the interactive session being the one
+    where a person decides, so the managed settings set manual mode back;
+    a person can still switch a session to auto mode, and `--auto` still
+    runs in bypass mode (tested 2026-11-13).

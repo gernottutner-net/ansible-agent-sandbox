@@ -5,6 +5,25 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-14
+
+#### Changed
+
+- Claude Code 2.1.323 in the image, up from 2.1.284, and the default `sandbox_image_tag` `0.4.0`, up from `0.2.0`, following the collection version of the release that changes the image: `roles/agentbox/defaults/main.yml`, `examples/group_vars/agent_sandbox.yml`, `docs/design.md` (the intro and "The policy surface") and `docs/images/claude-code-image.svg`, regenerated from its source, where the old image in storage is now `0.2.0`. The README's update example becomes `0.4.0-cc2.x.y`. 2.1.323 rather than 2.1.317, the version linked sessions were first tested with, for four sandbox fixes in 2.1.319 to 2.1.323. **Action needed on an existing install:** none beyond the playbook run; the new tag is built beside the old one.
+- The managed settings set `allowManagedHooksOnly: true` and `permissions.defaultMode: "default"`; the template's comment says why. No hook or mod loads but from the managed settings, which define none, and a session without `--auto` starts in manual mode again. `--auto` still runs in bypass mode.
+- `docs/design.md`: "Known unknowns" 4 answered, with the test, and 1 to 3 repeated on 2.1.323 with the same answers; "How they were tested" gains step 6, the mod test. "Agent Intercom", "What was tested": the table repeated on 2.1.323, with a row for `allowManagedHooksOnly`, the connectors' host showing in Squid only when the session ends, and the trust dialog's default. "`agentbox`: image, managed settings and launcher" and "The launcher contract" name the two settings; Decision 14 points to Decision 21.
+- README: "The launcher" says a plain session starts in manual mode and that Shift+Tab switches to auto mode; "Logging in" says the folder trust dialog defaults to *No, exit*; "Claude Code's own sandbox" says no hook or mod loads, and why; "Agent Intercom" says it was tested with the example policy's version; the RAM bullet adds the 2.1.323 figure. "Open questions": item 3, mods Claude writes, is gone, and the logins other than Pro become item 3.
+- `docs/release-tests.md`: new section "Claude Code 2.1.323, before v0.4.0", listed in the table of contents. "Not covered yet": the linked sessions' bullet no longer names 2.1.284; a new bullet for a mod in manual mode without `allowManagedHooksOnly`.
+
+#### Decisions
+
+- Decision 20: hooks and mods only from the managed settings, which define none. From 2.1.321 a mod Claude writes turns on without asking in bypass and auto mode and runs outside the inner sandbox, with the login readable; `allowManagedHooksOnly` stopped it in both modes, and built-in plugins and linked sessions kept working. The cost: no hooks or mods from the user, a project or a plugin.
+- Decision 21: interactive sessions start in manual mode. With 2.1.323 and a Pro login they started in auto mode, Claude Code's new default, against Decision 14's interactive default. Its notice is already in 2.1.284, so when it began for the sandbox is not known.
+
+#### Notes
+
+- Tested on `sandbox-vm` with the working tree, the settings as extra vars: the image build and `changed=0`; every row of the linked-session table; the mod test in `--auto` and in auto mode, with and without `allowManagedHooksOnly`; `defaultMode` with a plain session and with `--auto`; the known-unknowns session. Logins other than Pro and `channelsEnabled` not tested: no such login was available.
+
 ### 2026-11-13
 
 #### Changed

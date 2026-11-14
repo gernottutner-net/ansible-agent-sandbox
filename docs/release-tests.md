@@ -2,7 +2,8 @@
 
 What is tested before a release, what the runs before `v0.1.0` covered
 and found, the first install of that release from GitHub, and the release
-tests of `v0.2.0` and `v0.3.0`. The [README](../README.md) says how to use the collection,
+tests of `v0.2.0` and `v0.3.0`, and the tests of Claude Code 2.1.323
+before `v0.4.0`. The [README](../README.md) says how to use the collection,
 [docs/virtualbox.md](virtualbox.md) covers the VM, and
 [docs/design.md](design.md) why the sandbox is built the way it is.
 
@@ -36,6 +37,7 @@ led to.
   - [The run on a VM of its own](#the-run-on-a-vm-of-its-own)
   - [Upgrade from v0.2.0](#upgrade-from-v020)
   - [Observations](#observations)
+- [Claude Code 2.1.323, before v0.4.0](#claude-code-21323-before-v040)
 - [Not covered yet](#not-covered-yet)
 
 ---
@@ -423,6 +425,32 @@ No bug was found. Two things worth knowing:
    on `sandbox-vm` in the upgrade test. Not tested on a VM that is
    `saved` or `paused`, which takes the warning path as well.
 
+## Claude Code 2.1.323, before v0.4.0
+
+On 2026-11-13 and 2026-11-14, on the VM `sandbox-vm` (4 GB, built from
+`v0.2.0`, running the installed `v0.3.0`), with the working tree after
+`2c9b308` instead of an installed collection: `ANSIBLE_COLLECTIONS_PATH`
+pointed at a symlink to the clone. Not a release test: no new VM, no
+steps 1 to 9. The version, the tag `0.4.0` and the links between two
+scratch projects came as extra vars, so the inventory stayed unchanged; a
+snapshot `pre-cc323` before. A login in each scratch project; the
+interactive sessions were driven through `tmux` on the VM, installed for
+the test.
+
+| Test | Result |
+|---|---|
+| `sandbox --tags agentbox --check --diff` | the Containerfile, the broker's files, the managed settings, the launcher; `--check` does not show the build ([finding 3](#findings) of `v0.2.0`) |
+| `sandbox --tags agentbox` | `changed=10`, the image `0.4.0` built beside the old ones, `claude --version` 2.1.323; second run `changed=0` |
+| The linked-session table | every row passes; [docs/design.md, "What was tested"](design.md#what-was-tested-1) |
+| [Known unknowns](design.md#known-unknowns) 4, mods Claude writes | a mod turned on without asking in `--auto` and in auto mode, and ran outside the inner sandbox; `allowManagedHooksOnly` stopped it in both. Led to Decision 20 |
+| The managed settings with both keys, from the template | `--diff` shows exactly `allowManagedHooksOnly` and `defaultMode`; second run `changed=0` |
+| The known-unknowns session, 1 to 3 | the same answers as on 2026-10-31; two sessions about 240 MB each, `available` not below 2965 MB; no Squid denial |
+
+Also found: a plain session started in auto mode before Decision 21, and
+the folder trust dialog defaults to *No, exit*; both are in the README
+now. Afterwards `pre-cc323` was restored, which removed the scratch
+projects, `tmux` and the image `0.4.0`.
+
 ## Not covered yet
 
 - Heavier work in two concurrent sessions, and whether Claude Code
@@ -435,9 +463,10 @@ No bug was found. Two things worth knowing:
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
 - Linked sessions: a broker restart with sessions open, and logins other
   than Pro, which probably need `channelsEnabled: true`
-  ([docs/design.md, "What is open"](design.md#what-is-open)); Claude Code
-  2.1.284, the version of the example policy
-  ([docs/design.md, "What was tested"](design.md#what-was-tested-1)).
+  ([docs/design.md, "What is open"](design.md#what-is-open)).
+- Whether a mod Claude writes asks first in manual mode: with
+  `allowManagedHooksOnly` it does not load in any mode, and manual mode
+  was not tried without it.
 - `--check --diff` showing an image rebuild: finding 3 of the
   [release test of v0.2.0](#findings), not fixed.
 - Why Claude could write `.git/config` in the release test of `v0.3.0`
