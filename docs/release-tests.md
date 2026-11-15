@@ -4,7 +4,7 @@ What is tested before a release, what the runs before `v0.1.0` covered
 and found, the first install of that release from GitHub, and the release
 tests of `v0.2.0` and `v0.3.0`, the tests of Claude Code 2.1.323
 before `v0.4.0`, the release test of `v0.4.0`, and the shortened release
-test of `v0.5.0`. The [README](../README.md) says how to use the collection,
+tests of `v0.5.0` and `v0.6.0`. The [README](../README.md) says how to use the collection,
 [docs/virtualbox.md](virtualbox.md) covers the VM, and
 [docs/design.md](design.md) why the sandbox is built the way it is.
 
@@ -45,6 +45,7 @@ led to.
   - [Upgrade from v0.3.0](#upgrade-from-v030)
   - [What it found](#what-it-found)
 - [The release test of v0.5.0](#the-release-test-of-v050)
+- [The release test of v0.6.0](#the-release-test-of-v060)
 - [Not covered yet](#not-covered-yet)
 
 ---
@@ -610,6 +611,41 @@ applied with `changed=1`, then `changed=0`.
 [docs/design.md, "Sessions that outlive the connection"](design.md#sessions-that-outlive-the-connection)
 passed, on the final commit. Not tested: a linked session under `--tmux`.
 
+## The release test of v0.6.0
+
+On 2026-11-15, before `v0.6.0` was tagged, on `sandbox-vm`, with Claude
+Code 2.1.323 in the image. **Shortened, by decision**, as for `v0.5.0`: no
+role changed, only the playbook `sandbox` (the stamp) and the new
+playbook `update_check`, so the full run of steps 1 to 9 on a new VM and
+the known-unknowns session did not run.
+
+The collection was installed with `-p` into a scratch directory named by
+`ANSIBLE_COLLECTIONS_PATH`, so the installed collection and
+`~/.local/bin` stayed as they were: first from `2ba423f`, "update_check:
+what a collection update needs on the VM and the controller", still
+reporting 0.5.0; then from the working tree with the release's own
+changes, `galaxy.yml` at 0.6.0 and the entry for 0.6.0 in
+`meta/updates.yml`. Each time its roles, playbooks, `meta/` and
+`examples/` were identical to the source. `ansible-lint` and `yamllint`
+passed, and every playbook passed `--syntax-check`.
+
+| Step | Result |
+|---|---|
+| `update_check`, before the first `sandbox` run of the new code | "No stamp on this VM"; `agentbox-remote` not installed in `~/.local/bin` |
+| `sandbox --check --diff`, from `2ba423f` | `changed=2`: the directory `/etc/agent-sandbox` and the stamp, every role at 0.5.0. Nothing else |
+| `sandbox`, twice | `changed=2`, then `changed=0`; the stamp `root:root 0644` |
+| `update_check`, from the release's tree | the entry for 0.6.0: run `sandbox`, the new variable `agent_sandbox_bin_dir` not set; "To apply" names `sandbox --check --diff`, then `sandbox` |
+| `sandbox --check --diff` | `changed=1`: the stamp, 0.5.0 to 0.6.0, for all three roles |
+| `sandbox`, twice | `changed=1`, then `changed=0` |
+| `update_check` | "Up to date: nothing to run." |
+| `update_check -e install_scripts=true`, with `agent_sandbox_bin_dir` a scratch directory, twice | installs `agentbox-remote`, identical to the collection's, and warns that the directory is not on `PATH`; the second run reports it current, `changed=0` |
+| `update_check` and `sandbox --check --tags podman`, from `2ba423f` again | both warn that 0.5.0 is older than what last applied the roles; `sandbox` goes on |
+
+The variables `examples/` sets were all set in the deployment's inventory,
+so that line of the report did not show; it was tested on a stand-in host
+with a local connection, as were a role left out by `--tags` and a VM that
+is off.
+
 ## Not covered yet
 
 - Heavier work in two concurrent sessions, and whether Claude Code
@@ -623,9 +659,11 @@ passed, on the final commit. Not tested: a linked session under `--tmux`.
   release test, tested only by hand
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
 - A linked session under `--tmux`.
-- `update_check` against a VM: so far run only on a stand-in host with a
-  local connection, and against a VM that was off. The stamp `sandbox`
-  writes was tested the same way, with the roles left out.
+- `update_check` on a VM that a release with a role change left behind,
+  and its line on the variables `examples/` sets, on a real inventory:
+  the [release test of v0.6.0](#the-release-test-of-v060) had neither.
+- The full run of steps 1 to 9 on the playbooks of `v0.6.0`:
+  [skipped](#the-release-test-of-v060).
 - The full run of steps 1 to 9, and the known-unknowns session, on the
   launcher of `v0.5.0`: [skipped](#the-release-test-of-v050).
 - Linked sessions: a broker restart with sessions open, and logins other

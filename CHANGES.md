@@ -5,6 +5,8 @@ level.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-15 — Update Check
+
 ### 2026-11-15
 
 #### Added
@@ -17,8 +19,8 @@ level.
 #### Changed
 
 - README, "Updating the collection": a new step 4 runs `update_check`; new subsection "What an update needs", in the table of contents; going back says that `sandbox` warns. "From the controller": install `agentbox-remote` with `update_check -e install_scripts=true`, which also replaces it after an update.
+- `docs/release-tests.md`: new section "The release test of v0.6.0", in the table of contents and the intro; the upgrade test also runs `update_check` before and after; "Not covered yet" names what the release test did not cover and the skipped full run. `galaxy.yml` and the README's pinned install examples at `v0.6.0`. `meta/updates.yml`: the entry for 0.6.0.
 - `dev/releasing.md`, "How to release": a new step 2, the release's entry in `meta/updates.yml`; the later steps renumbered.
-- `docs/release-tests.md`: the upgrade test also runs `update_check` before and after; "Not covered yet" names `update_check` against a running VM.
 
 #### Decisions
 

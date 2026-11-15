@@ -14,6 +14,18 @@
 #   scripts:    controller scripts from examples/ that are new or changed
 #   note:       anything else, in one or two sentences
 releases:
+  - version: "0.6.0"
+    run:
+      - playbook: sandbox
+        note: changes nothing on the VM but the stamp update_check reads
+    image: false
+    variables:
+      - name: agent_sandbox_bin_dir
+        about: where update_check -e install_scripts=true puts the controller scripts
+    scripts: []
+    note: >-
+      New playbook update_check, and the stamp on the VM that it reads.
+
   - version: "0.5.0"
     run:
       - playbook: sandbox
