@@ -100,11 +100,11 @@ installed once, it can be used from any directory. Install a release, by
 its tag:
 
 ```bash
-ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git,v0.4.0
+ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git,v0.5.0
 ```
 
 A tag is the commit that passed the release tests, and is never moved.
-Without `,v0.4.0`, you get `main`: what comes next, not tested as a
+Without `,v0.5.0`, you get `main`: what comes next, not tested as a
 release, and still reporting the last release's version.
 
 It goes into the first entry of Ansible's collections path, by default
@@ -122,7 +122,7 @@ you already have, and install it with
 collections:
   - name: https://github.com/gernottutner-net/ansible-agent-sandbox.git
     type: git
-    version: v0.4.0
+    version: v0.5.0
 ```
 
 ## Updating the collection
@@ -143,7 +143,7 @@ A new release is installed the same way, over the old one:
    `ansible-galaxy collection install -r requirements.yml`:
 
    ```bash
-   ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git,v0.4.0
+   ansible-galaxy collection install git+https://github.com/gernottutner-net/ansible-agent-sandbox.git,v0.5.0
    ansible-galaxy collection list tutner.agent_sandbox     # shows the new version
    ```
 

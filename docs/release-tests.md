@@ -3,7 +3,8 @@
 What is tested before a release, what the runs before `v0.1.0` covered
 and found, the first install of that release from GitHub, and the release
 tests of `v0.2.0` and `v0.3.0`, the tests of Claude Code 2.1.323
-before `v0.4.0`, and the release test of `v0.4.0`. The [README](../README.md) says how to use the collection,
+before `v0.4.0`, the release test of `v0.4.0`, and the shortened release
+test of `v0.5.0`. The [README](../README.md) says how to use the collection,
 [docs/virtualbox.md](virtualbox.md) covers the VM, and
 [docs/design.md](design.md) why the sandbox is built the way it is.
 
@@ -43,6 +44,7 @@ led to.
   - [Agent Intercom, a short check](#agent-intercom-a-short-check)
   - [Upgrade from v0.3.0](#upgrade-from-v030)
   - [What it found](#what-it-found)
+- [The release test of v0.5.0](#the-release-test-of-v050)
 - [Not covered yet](#not-covered-yet)
 
 ---
@@ -569,6 +571,43 @@ contradicts, and two things worth knowing:
    bash -c …` started Claude in bypass mode with them, not a shell; the
    `--auto` row above was read from outside, with `podman exec`.
 
+## The release test of v0.5.0
+
+On 2026-11-15, before `v0.5.0` was tagged, on the commit before the
+release commit, "Sessions that outlive the connection: agentbox --tmux,
+and agentbox-remote", with Claude Code 2.1.323 in the image.
+**Shortened, by decision:** the full run of steps 1 to 9 on a new VM and
+the known-unknowns session, which a launcher change calls for, did not
+run. The host had too little free memory for a second VM beside
+`sandbox-vm`, and both need logins. Only the upgrade test and the test of
+the new feature ran, on `sandbox-vm`.
+
+The collection was installed from the working tree with `-p` into a
+scratch directory named by `ANSIBLE_COLLECTIONS_PATH`, so the installed
+`v0.4.0` stayed; its roles and playbooks were identical to the commit's.
+`ansible-lint` and `yamllint` passed, every playbook passed
+`--syntax-check`, and so did `python3 dev/test-peer-broker.py`.
+
+**Upgrade from `v0.4.0`**, on `sandbox-vm` with its own pin
+`sandbox_image_tag: "0.4.0-cc2.1.323"`, two links, and two linked sessions
+running throughout:
+
+| Step | Result |
+|---|---|
+| `sandbox --check --diff` | `changed=2`: `tmux` installed and the launcher, as CHANGES.md says. No image build, no peer broker restart |
+| `sandbox` | `changed=2`; both sessions kept running |
+| `sandbox`, again | `changed=0` |
+
+The test of `--tmux` then found that a closed tmux pane left the container
+running; the launcher was changed to wait with `wait`, and moved its tmux
+socket back to tmux's default. Each of the two launcher changes was
+applied with `changed=1`, then `changed=0`.
+
+**The feature and the launcher's plain path**, from the controller with
+`examples/agentbox-remote`: every check listed under
+[docs/design.md, "Sessions that outlive the connection"](design.md#sessions-that-outlive-the-connection)
+passed, on the final commit. Not tested: a linked session under `--tmux`.
+
 ## Not covered yet
 
 - Heavier work in two concurrent sessions, and whether Claude Code
@@ -582,6 +621,8 @@ contradicts, and two things worth knowing:
   release test, tested only by hand
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
 - A linked session under `--tmux`.
+- The full run of steps 1 to 9, and the known-unknowns session, on the
+  launcher of `v0.5.0`: [skipped](#the-release-test-of-v050).
 - Linked sessions: a broker restart with sessions open, and logins other
   than Pro, which probably need `channelsEnabled: true`
   ([docs/design.md, "What is open"](design.md#what-is-open)).

@@ -5,6 +5,8 @@ level.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-15 — TMUX
+
 ### 2026-11-15
 
 #### Added
@@ -14,6 +16,7 @@ level.
 
 #### Changed
 
+- `docs/release-tests.md`: new section "The release test of v0.5.0", in the table of contents and the intro; "Not covered yet" names the skipped full run and known-unknowns session. `galaxy.yml` and the README's pinned install examples at `v0.5.0`.
 - The launcher runs `podman run` in the background and waits for it with `wait`, so a signal to the launcher stops the container at once, also when the client is not signalled itself. Under tmux a closed pane hangs up only the launcher; with the client in the foreground the trap waited forever and the container kept running (found 2026-11-15, testing `--tmux`). The client still gets the terminal as its stdin. Plain sessions retested on the VM: typed input, exit status, piped stdin, `kill -9` on the `ssh` client, `SIGTERM`, `SIGINT` and `SIGHUP`.
 - README, "Sessions": new subsections "Sessions that outlive the connection" and "From the controller", in the table of contents; "The launcher" points there instead of to `tmux` or `nohup` by hand. `docs/design.md`, "The launcher contract": new subsection "Sessions that outlive the connection", in the table of contents, and the lost-terminal paragraph points to it; "`agentbox`: image, managed settings and launcher" names `tmux`. `docs/release-tests.md`: a check of `--tmux` and `agentbox-remote` for a release that changes the launcher.
 - README: says when a change to the inventory reaches the VM, after a token missing from a new project's session and a link that was in the inventory but not on the VM. "Configure": the VM knows only what a playbook wrote; a table of what to run after which change (`git_token`, `sandbox`, `provision`) and that running sessions have to start again. "The launcher": the lines it prints as a session starts, for each token and for a link, and what a missing one means. "Getting a project in": the `git_token` step before the session. "Agent Intercom": the exact line of a linked session, and that without it the session is not linked.
@@ -22,6 +25,10 @@ level.
 #### Decisions
 
 - Decision 22: sessions outlive the connection in tmux, on the VM, behind the launcher. Not in the container, where tmux would run under the limits and be gone with `--rm`; not inside the launcher's `podman run` line, which stays the one place of the run policy. A browser terminal was considered and left out: a web service holding a way into every session, for little more than `ssh -t` and tmux give.
+
+#### Notes
+
+- The release test of `v0.5.0`, shortened by decision: the upgrade test from `v0.4.0` on `sandbox-vm` (`changed=2`, then `0`, with two linked sessions running throughout) and the test of `--tmux`, `agentbox-remote` and the launcher's plain path passed. The full run on a new VM and the known-unknowns session did not run: too little free memory on the host for a second VM, and both need logins. The test of `--tmux` found the launcher's foreground wait, fixed before the release.
 
 ## [0.4.0] - 2026-11-15 — Agent Intercom
 
