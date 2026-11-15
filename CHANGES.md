@@ -9,6 +9,7 @@ level.
 
 #### Changed
 
+- README: says when a change to the inventory reaches the VM, after a token missing from a new project's session and a link that was in the inventory but not on the VM. "Configure": the VM knows only what a playbook wrote; a table of what to run after which change (`git_token`, `sandbox`, `provision`) and that running sessions have to start again. "The launcher": the lines it prints as a session starts, for each token and for a link, and what a missing one means. "Getting a project in": the `git_token` step before the session. "Agent Intercom": the exact line of a linked session, and that without it the session is not linked.
 - `.gitignore`: `/tmp/` in the repository root, for scratch files kept beside the clone, such as drafts of release announcements.
 
 ## [0.4.0] - 2026-11-15 — Agent Intercom

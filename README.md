@@ -183,6 +183,20 @@ playbooks of your own needed. Then adapt it:
   only the VM's own key offered. A commented-out `log_path` turns on a log
   file; Ansible writes none by default.
 
+The VM knows only what a playbook wrote to it. A change to your inventory
+does nothing on the VM until the playbook that reads it runs again, and a
+session that is running keeps what it started with:
+
+| You changed | Run | Then |
+|---|---|---|
+| `agentbox_git_tokens`, or a token in your credential helper | `git_token -e project=<project>` | start the project's session again |
+| anything else in `group_vars/agent_sandbox.yml`: allowlist, limits, image, `agentbox_*`, `agentbox_peer_links` | `sandbox` | start the sessions again |
+| `vm_memory_mb`, `vm_cpus` | `provision`, with the VM off | see [Tuning the VM](#tuning-the-vm) |
+
+A link or a token that is in the inventory but missing from the VM shows as
+a line the launcher does not print as the session starts
+([The launcher](#the-launcher)).
+
 Run every `ansible-playbook` command below from inside that directory:
 Ansible reads `ansible.cfg` from the current directory, and through it
 finds the inventory. Started anywhere else, it runs with another
@@ -401,6 +415,28 @@ agentbox <project> bash         # a shell instead, e.g. to clone first
   settings set manual mode instead. Shift+Tab switches a session to auto
   mode.
 
+As it starts, the launcher prints what the session gets beyond the
+defaults, one line each:
+
+```text
+agentbox: repository token for github.com (permanent)
+agentbox: repository token for gitlab.example.org (session, deleted when it ends)
+agentbox: linked session: sends to beta, telemetry on, confirm the channel dialog
+```
+
+No line, no token or link in this session. When one you expected is
+missing:
+
+- **A token:** `git_token -e project=<project>` has not run since the
+  token went into `agentbox_git_tokens`, or a `session` token was used up
+  by the session before, or cleared by a reboot of the VM. git then asks
+  for a username on a clone of a private repository and on a push:
+  nothing in the session can answer it.
+- **The link:** `sandbox` has not run since the link went into
+  `agentbox_peer_links`, so the launcher on the VM has no links; or the
+  session is not a plain `agentbox <project>` on a terminal
+  ([Agent Intercom](#agent-intercom)).
+
 ### Autonomous mode
 
 ```bash
@@ -443,9 +479,12 @@ read -rs t && printf %s "$t" | podman secret create anthropic_api_key - && unset
 
 Clone inside the session, over HTTPS through the proxy. Only allowlisted
 hosts work, and there are no SSH keys in the sandbox. A private repository,
-and a push to any repository, need a [repository token](#repository-tokens).
+and a push to any repository, need a [repository token](#repository-tokens),
+written to the VM before the session starts; the session's first lines
+name it.
 
 ```bash
+ansible-playbook tutner.agent_sandbox.git_token -e project=myproj   # on the controller, if it has a token
 agentbox myproj bash
 git clone https://github.com/<owner>/<repo>.git .      # inside, in /work
 exit
@@ -582,8 +621,16 @@ agentbox alpha
 agentbox beta
 ```
 
-Each prints that it is linked, and Claude Code asks you to confirm a
-warning about development channels, at every start: choose "I am using
+Each prints that it is linked:
+
+```text
+agentbox: linked session: sends to beta, telemetry on, confirm the channel dialog
+```
+
+Without that line the session is not linked: run `sandbox` after every
+change to the links; the inventory alone changes nothing on the VM. Then
+Claude Code asks you to confirm a warning about development channels, at
+every start: choose "I am using
 this for local development". Then tell one session what you want, for
 example to ask the session in `beta` something. It gets a tool `send`, and
 the other wakes up by itself.
