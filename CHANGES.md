@@ -5,6 +5,16 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-15
+
+#### Changed
+
+- `docs/release-tests.md`: new section "The release test of v0.4.0", listed in the table of contents and the intro. "Not covered yet": the `.git/config` bullet names the release test of `v0.4.0` too.
+
+#### Notes
+
+- The release test of `v0.4.0` on `ccdd460`, on a new VM `rt-vm`: steps 1 to 9 pass, with `changed=15`, `30`, `0`, step 5 with both lifetimes, the snapshots and `destroy`. The Agent Intercom table repeated from the commit as a short check, every row passing; the known-unknowns session counted from 2026-11-14. Upgrade from `v0.3.0` on `sandbox-vm`: `--check --diff` shows exactly the two managed-settings keys, `changed=1`, then `changed=0`. No bug found. Claude wrote the upstream into `.git/config` with `git push -u`, as in the release test of `v0.3.0`, against what the README's "Repository tokens" says; the README is not changed with this record.
+
 ### 2026-11-14
 
 #### Changed

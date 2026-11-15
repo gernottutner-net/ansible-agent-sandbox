@@ -2,8 +2,8 @@
 
 What is tested before a release, what the runs before `v0.1.0` covered
 and found, the first install of that release from GitHub, and the release
-tests of `v0.2.0` and `v0.3.0`, and the tests of Claude Code 2.1.323
-before `v0.4.0`. The [README](../README.md) says how to use the collection,
+tests of `v0.2.0` and `v0.3.0`, the tests of Claude Code 2.1.323
+before `v0.4.0`, and the release test of `v0.4.0`. The [README](../README.md) says how to use the collection,
 [docs/virtualbox.md](virtualbox.md) covers the VM, and
 [docs/design.md](design.md) why the sandbox is built the way it is.
 
@@ -38,6 +38,11 @@ led to.
   - [Upgrade from v0.2.0](#upgrade-from-v020)
   - [Observations](#observations)
 - [Claude Code 2.1.323, before v0.4.0](#claude-code-21323-before-v040)
+- [The release test of v0.4.0](#the-release-test-of-v040)
+  - [Steps 1 to 9](#steps-1-to-9)
+  - [Agent Intercom, a short check](#agent-intercom-a-short-check)
+  - [Upgrade from v0.3.0](#upgrade-from-v030)
+  - [What it found](#what-it-found)
 - [Not covered yet](#not-covered-yet)
 
 ---
@@ -451,6 +456,106 @@ the folder trust dialog defaults to *No, exit*; both are in the README
 now. Afterwards `pre-cc323` was restored, which removed the scratch
 projects, `tmux` and the image `0.4.0`.
 
+## The release test of v0.4.0
+
+On 2026-11-14 and 2026-11-15, before `v0.4.0` was tagged, on `ccdd460`,
+with Claude Code 2.1.323 in the image. The collection was installed from a
+local clone with `git+file://…` and `--force`, with `-p` into the working
+directory, which `collections_path` in its `ansible.cfg` names, as
+[Install](../README.md#install) allows: so the installed `v0.3.0` that
+`sandbox-vm` runs stayed. Its roles and playbooks were identical to the
+commit's. `ansible-lint` and `yamllint` passed on it, every playbook
+passed `--syntax-check`, and so did `python3 dev/test-peer-broker.py`.
+
+### Steps 1 to 9
+
+On a new VM `rt-vm`, set up as for [v0.3.0](#the-run-on-a-vm-of-its-own):
+`examples/` copied in afresh from `ccdd460` and checked with `diff -r`,
+the host renamed, its own address (`.30`), MACs and key,
+`vm_memory_mb: 4096`, and `agentbox_git_tokens` for step 5.
+
+| # | Step | Result |
+|---|---|---|
+| 1 | `provision` | passes: `changed=15` in 2 min 39 s, cloud-init done; 4096 MB, 4 CPUs |
+| 2 | `sandbox`, first run | passes, image build included, in 3 min 20 s: `changed=30` |
+| 3 | `sandbox`, second run | `changed=0` |
+| 4 | Smoke tests from the README, word for word, as `agent` | all pass, with the values of the runs before and Claude Code 2.1.323; `~/projects` and `~/.agentbox` left empty |
+| 5 | Repository tokens, for the private GitHub repository kept for tests, with a fine-grained token from a `pass`-backed credential helper on the controller, named by `credential.passEntry` in `git_config` | `git_token` wrote each project's token, `changed=2`, files `0600` in directories `0700`, the token in neither log. **`session`, in `agentbox rt-s bash`**: clone, commit and push of a branch; the launcher named the token's host and lifetime; the only credential setting `credential.helper agentbox` from `/etc/gitconfig`, no token in the remote URL, no `~/.git-credentials`, no file in `/work` or the home directory with a token prefix; the token gone after the session. With a new `session` token, the session started behind `ssh -tt`: the token mounted `ro`, a write refused with `Read-only file system`, a second start in the project refused with the token kept; 0.3 s after `kill -9` on the `ssh` client, container and token were gone. **`permanent`, with Claude** (`agentbox --auto rt-p -p …`, cloning into a subdirectory, after a login in `agentbox rt-p`): clone, commit and push of a branch through Claude's sandbox; the token in neither the state directory, the two transcripts, `/work` nor the output. [Finding 1](#what-it-found). Both branches deleted with `git push --delete` from a session; `remove` left no token, only the empty `tokens/session` directory on tmpfs; `~/projects`, `~/.agentbox` and `~/.agentbox-tokens` left empty |
+| 6 | `snapshot` take `base` | passes: `changed=5` in 52 s, the poll waiting through seven retries for the guest to stop; the state file next to the inventory, the collection holds none |
+| 7 | take `pre-session`, restore `pre-session`, restore `base` | pass: `changed=3` each. `ssh` right after each connects. After `pre-session` only the marker written before it is there; after `base`, neither |
+| 8 | `sandbox` afterwards | `changed=0` |
+| 9 | `destroy --limit rt-vm -e destroy_confirm=yes` | passes in 8.4 s on the running VM with two snapshots: `changed=5`. No VM, no registered disk or DVD, no machine folder, no build artefacts; the base image cache stays. The state file then deleted by hand |
+
+The Agent Intercom check below ran on `rt-vm` between steps 8 and 9.
+
+### Agent Intercom, a short check
+
+The release changes the peer broker and Claude Code's version, so the
+table in [docs/design.md, "What was tested"](design.md#what-was-tested-1)
+is due. It passed in full on 2026-11-13 with the same Claude Code and
+settings, from the working tree with extra vars
+([above](#claude-code-21323-before-v040)); here its rows ran again from
+`ccdd460`, on `rt-vm`, with the links `alpha` and `beta` of the example
+and `agentbox_peer_budget: 6` in the working directory's group_vars, a Pro
+login in each, and both sessions started plainly, in manual mode.
+
+| Question | Result |
+|---|---|
+| The play with links, then again | `changed=8`, then `changed=0`; the broker up with both projects |
+| The dialog | Shown at each start; the launcher's line above it says the session is linked |
+| Asked at its prompt to ask the other session something | Asked; the other woke, answered with `send` unprompted, and the answer arrived; a follow-up the same way, nobody typing |
+| A prompt for `send` | None, on either side, in manual mode |
+| `DISABLE_ERROR_REPORTING=1` | Kept; `DISABLE_TELEMETRY` absent; the managed settings in the session carry `allowManagedHooksOnly: true` and `defaultMode: "default"` |
+| The budget | Stopped at 6, the journal's seventh `send` a `budget` event; both sessions told; the next `send` refused |
+| A command in a linked session | `PermissionError: [Errno 1] Operation not permitted` at `socket(AF_UNIX)` |
+| `--auto` in a linked project, on a terminal | Not linked: no socket, no `managed-mcp.json`, `DISABLE_TELEMETRY` set |
+| A run without a terminal | Not linked, the same |
+| The claude.ai connectors | Listed in `/mcp` beside `peer`; `mcp-proxy.anthropic.com` in the Squid log |
+| The play without links | `changed=4`: unit, broker, policy and runtime directory gone, no peer line left in the launcher; `changed=0` after |
+| Squid | Denied only the telemetry host and `downloads.claude.ai`, and `example.com` from the smoke tests |
+
+The [known unknowns](design.md#how-they-were-tested) session did not run
+again: it ran on 2026-11-14 with 2.1.323 and the settings `ccdd460`
+commits, from the working tree.
+
+### Upgrade from v0.3.0
+
+On the VM `sandbox-vm`, built from `v0.2.0` and running the installed
+`v0.3.0`, with 4 GB, its own pin `sandbox_image_tag: "0.2.0-cc2.1.317"`
+and `agentbox_claude_code_version: "2.1.317"`, no links, running. The
+collection at `ccdd460`, from the test's install:
+
+| Step | Result |
+|---|---|
+| `sandbox --check --diff` | `changed=1`: the managed settings, with exactly `allowManagedHooksOnly` and `defaultMode` added, as CHANGES.md says. No image build, since the VM pins its own tag; the launcher unchanged without links (Decision 19) |
+| `sandbox` | `changed=1` |
+| `sandbox`, again | `changed=0` |
+
+This VM was kept, now with the managed settings of `v0.4.0` and its own
+image.
+
+### What it found
+
+No bug in the collection. One thing the README says that the run
+contradicts, and two things worth knowing:
+
+1. **Claude wrote `.git/config` again.** Claude ran `git push -u` in its
+   sandbox, and the upstream landed in `.git/config`
+   (`branch.rt-v040-permanent.remote` and `.merge`), with Claude Code
+   2.1.323, as in the [release test of v0.3.0](#observations) with 2.1.284.
+   The README's "Repository tokens" still says that `git push -u` records
+   no upstream and that `git config` in the repository fails, from the
+   [release test of v0.2.0](#findings). Not changed with this record.
+2. **A credential helper that picks the token per repository needs
+   `git_config`.** The first `git_token` run failed with the helper's own
+   message, because the token's name was in the clone's `.git/config` on
+   the controller, not in the inventory. The README says so; the run had
+   checked the helper from inside a repository, which the README warns
+   against. With `credential.passEntry` in `git_config` it passed.
+3. **`--auto` passes its arguments to Claude.** `agentbox --auto <project>
+   bash -c …` started Claude in bypass mode with them, not a shell; the
+   `--auto` row above was read from outside, with `podman exec`.
+
 ## Not covered yet
 
 - Heavier work in two concurrent sessions, and whether Claude Code
@@ -469,5 +574,6 @@ projects, `tmux` and the image `0.4.0`.
   was not tried without it.
 - `--check --diff` showing an image rebuild: finding 3 of the
   [release test of v0.2.0](#findings), not fixed.
-- Why Claude could write `.git/config` in the release test of `v0.3.0`
-  and not in that of `v0.2.0`: [observation 1](#observations).
+- Why Claude could write `.git/config` in the release tests of `v0.3.0`
+  and `v0.4.0` and not in that of `v0.2.0`: [observation 1](#observations)
+  and [finding 1](#what-it-found) of `v0.4.0`.
