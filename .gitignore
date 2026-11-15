@@ -2,3 +2,5 @@
 .ansible/
 examples/state/
 .claude/settings.local.json
+# Scratch files kept beside the clone, never committed
+/tmp/

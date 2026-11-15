@@ -5,6 +5,12 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-15
+
+#### Changed
+
+- `.gitignore`: `/tmp/` in the repository root, for scratch files kept beside the clone, such as drafts of release announcements.
+
 ## [0.4.0] - 2026-11-15 — Agent Intercom
 
 ### 2026-11-15
