@@ -149,7 +149,11 @@ A new release is installed the same way, over the old one:
    ```
 
 4. Ask what the update needs, on the VM and on the controller
-   ([below](#what-an-update-needs)), and change your files where it says:
+   ([below](#what-an-update-needs)), and change your files where it says.
+   The VM must be running: `update_check` reads over SSH which release
+   last applied it, and of a VM that is off it reports only that it is not
+   reachable. Start it as
+   [Starting and stopping the VM](#starting-and-stopping-the-vm) says.
 
    ```bash
    ansible-playbook tutner.agent_sandbox.update_check

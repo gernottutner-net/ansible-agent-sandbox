@@ -5,6 +5,12 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-15
+
+#### Changed
+
+- README, "Updating the collection", step 4: the VM must be running for `update_check`, which reads its stamp over SSH; of a VM that is off it reports only that it is not reachable. With a link to "Starting and stopping the VM".
+
 ## [0.6.0] - 2026-11-15 — Update Check
 
 ### 2026-11-15
