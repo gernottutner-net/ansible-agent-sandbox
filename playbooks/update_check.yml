@@ -1,0 +1,223 @@
+---
+# What an existing install needs after a collection update. Changes nothing
+# unless asked to install the controller scripts.
+#
+#   ansible-playbook tutner.agent_sandbox.update_check
+#   ansible-playbook tutner.agent_sandbox.update_check -e install_scripts=true
+#
+# For each VM: the collection version that last applied each role (the stamp
+# the playbook sandbox writes), and for every release since then, from
+# meta/updates.yml, the playbooks to run, whether the image needs a new tag,
+# and the new variables with whether your inventory sets them. Also the
+# variables examples/ sets and your inventory does not.
+#
+# On the controller: whether the scripts from examples/, such as
+# agentbox-remote, are installed and current. install_scripts=true copies
+# them to agent_sandbox_bin_dir (default ~/.local/bin), with a backup of a
+# copy that differs.
+- name: What an update needs on the VM and on the controller
+  hosts: agent_sandbox
+  gather_facts: false
+  vars_files:
+    - vars/collection.yml
+  vars:
+    # install_scripts (default false) and agent_sandbox_bin_dir (default
+    # ~/.local/bin) are read with default(), not set here: play vars would
+    # override the inventory.
+    _install: "{{ install_scripts | default(false) | bool }}"
+    _updates: >-
+      {{ (lookup('ansible.builtin.file', _collection_root ~ '/meta/updates.yml')
+          | from_yaml).releases }}
+    _example_keys: >-
+      {%- set ns = namespace(k=[]) -%}
+      {%- for f in ['group_vars/all.yml', 'group_vars/agent_sandbox.yml', 'host_vars/sandbox-vm.yml'] -%}
+      {%- set ns.k = ns.k + (lookup('ansible.builtin.file', _collection_root ~ '/examples/' ~ f)
+                             | from_yaml | list) -%}
+      {%- endfor -%}
+      {{ ns.k | unique }}
+    _scripts: "{{ _updates | map(attribute='scripts') | flatten | unique | sort }}"
+
+  tasks:
+    - name: Read which collection version last applied each role
+      ansible.builtin.slurp:
+        src: "{{ _sandbox_deployed_stamp }}"
+      register: _stamp_file
+      failed_when: false
+      # A VM that is off still gets its report, and the controller its check.
+      ignore_unreachable: true
+
+    - name: Record the stamp and the oldest version in it
+      ansible.builtin.set_fact:
+        _stamp: "{{ _s }}"
+        _oldest: >-
+          {%- set ns = namespace(v='') -%}
+          {%- for v in _s.values() -%}
+          {%- if ns.v == '' or v is version(ns.v, '<') -%}{%- set ns.v = v -%}{%- endif -%}
+          {%- endfor -%}
+          {{ ns.v }}
+      vars:
+        _s: >-
+          {{ (_stamp_file.content | b64decode | from_json)
+             if _stamp_file.content is defined else {} }}
+
+    - name: Report what this VM needs
+      ansible.builtin.debug:
+        msg: "{{ _report }}"
+      vars:
+        _missing: "{{ _sandbox_role_tags.keys() | difference(_stamp.keys()) | sort }}"
+        _newer: >-
+          {{ _stamp | dict2items
+             | selectattr('value', 'version', _collection_version, '>')
+             | map(attribute='key') | sort }}
+        # Oldest first, the order to apply them in.
+        _pending: >-
+          {{ (_updates
+              | selectattr('version', 'version', _oldest, '>')
+              | selectattr('version', 'version', _collection_version, '<=')
+              | reverse | list) if _oldest else [] }}
+        _unset_examples: >-
+          {{ _example_keys | reject('in', hostvars[inventory_hostname])
+             | reject('match', 'ansible_') | sort }}
+        _image: "{{ _pending | selectattr('image', 'defined') | selectattr('image') | list }}"
+        _tag: "{{ hostvars[inventory_hostname].sandbox_image_tag | default('') | string }}"
+        _report: >-
+          {%- set ns = namespace(l=[], pb=[]) -%}
+          {%- set ns.l = ns.l + ['Installed collection: ' ~ _collection_version] -%}
+          {%- if _stamp_file.unreachable | default(false) -%}
+          {%- set ns.l = ns.l + ['Not reachable over SSH: start the VM and run update_check again.'] -%}
+          {%- elif not _stamp -%}
+          {%- set ns.l = ns.l + [
+                'No stamp on this VM: a release before 0.6.0 applied it, or none did.',
+                'Run sandbox once: it changes only what differs, and stamps the VM.'] -%}
+          {%- else -%}
+          {%- set ns.l = ns.l + ['Last applied: ' ~ (_stamp | dictsort
+                | map('join', ' ') | join(', '))] -%}
+          {%- endif -%}
+          {%- if _newer -%}
+          {%- set ns.l = ns.l + ['WARNING: older than what last applied ' ~ (_newer | join(', '))
+                ~ '. Install the newer release, unless you mean to go back.'] -%}
+          {%- endif -%}
+          {%- if _stamp and _missing -%}
+          {%- set ns.l = ns.l + ['Never stamped: ' ~ (_missing | join(', '))
+                ~ '. A run with --tags stamps only the roles it selects: run sandbox without --tags.'] -%}
+          {%- endif -%}
+          {%- if _stamp and not _pending and not _missing and not _newer -%}
+          {%- set ns.l = ns.l + ['Up to date: nothing to run.'] -%}
+          {%- endif -%}
+          {%- for r in _pending -%}
+          {%- set ns.l = ns.l + [r.version ~ ':'] -%}
+          {%- for p in r.run | default([]) -%}
+          {%- set ns.pb = ns.pb + [p.playbook] -%}
+          {%- set ns.l = ns.l + ['  run ' ~ p.playbook
+                ~ ((' --tags ' ~ (p.tags | join(','))) if p.tags is defined else '')
+                ~ ((': ' ~ p.note) if p.note is defined else '')] -%}
+          {%- endfor -%}
+          {%- for v in r.variables | default([]) -%}
+          {%- set ns.l = ns.l + ['  new variable ' ~ v.name ~ ' ('
+                ~ ('set in your inventory' if v.name in hostvars[inventory_hostname]
+                   else 'not set: the role default applies')
+                ~ '): ' ~ v.about] -%}
+          {%- endfor -%}
+          {%- for s in r.scripts | default([]) -%}
+          {%- set ns.l = ns.l + ['  controller script ' ~ s ~ ': new or changed, see the report below'] -%}
+          {%- endfor -%}
+          {%- if r.note is defined -%}
+          {%- set ns.l = ns.l + ['  ' ~ (r.note | trim)] -%}
+          {%- endif -%}
+          {%- endfor -%}
+          {%- if _image -%}
+          {%- set new = (_image | last).default_tag -%}
+          {%- if _tag == '' or _tag == new or _tag.startswith(new ~ '-') -%}
+          {%- set ns.l = ns.l + ['Image: the recipe changed in ' ~ (_image | map(attribute='version') | join(', '))
+                ~ '; sandbox_image_tag ' ~ (_tag or new ~ ', the role default,')
+                ~ ' is a tag for it, and the next sandbox run builds it.'] -%}
+          {%- else -%}
+          {%- set ns.l = ns.l + ['Image: the recipe changed in ' ~ (_image | map(attribute='version') | join(', '))
+                ~ '. The role refuses to rebuild an existing tag: unless sandbox_image_tag ('
+                ~ _tag ~ ') already names a tag for the new recipe,'
+                ~ ' set it to ' ~ new ~ ', or ' ~ new ~ '-cc<Claude Code version>.'] -%}
+          {%- endif -%}
+          {%- endif -%}
+          {%- if ns.pb -%}
+          {%- set order = (['provision'] if 'provision' in ns.pb else [])
+                          + (ns.pb | unique | reject('eq', 'provision') | list) -%}
+          {%- set ns.l = ns.l + ['To apply: snapshot the VM, then run '
+                ~ (order | map('regex_replace', '^sandbox$', 'sandbox --check --diff, then sandbox')
+                   | join(', then ')) ~ '.'] -%}
+          {%- endif -%}
+          {%- if _unset_examples -%}
+          {%- set ns.l = ns.l + ['examples/ sets, your inventory does not (the role defaults apply): '
+                ~ (_unset_examples | join(', '))] -%}
+          {%- endif -%}
+          {{ ns.l }}
+
+    # ---- the controller scripts -------------------------------------------------
+
+    - name: Check the controller scripts
+      run_once: true
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+        _bin_dir: "{{ agent_sandbox_bin_dir | default('~/.local/bin') | expanduser }}"
+      block:
+        - name: Checksum the collection's copies
+          ansible.builtin.stat:
+            path: "{{ _collection_root }}/examples/{{ item }}"
+          loop: "{{ _scripts }}"
+          register: _script_src
+
+        - name: Find each script on PATH
+          ansible.builtin.command:
+            argv: [sh, -c, 'command -v "$1"', sh, "{{ item }}"]
+          loop: "{{ _scripts }}"
+          register: _script_path
+          changed_when: false
+          failed_when: false
+          check_mode: false
+
+        - name: Checksum the copies found
+          ansible.builtin.stat:
+            path: "{{ item.stdout | default('', true) or (_bin_dir ~ '/' ~ item.item) }}"
+          loop: "{{ _script_path.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+          register: _script_dest
+
+        - name: Report the controller scripts
+          ansible.builtin.debug:
+            msg: >-
+              {%- set ns = namespace(l=[]) -%}
+              {%- for src in _script_src.results -%}
+              {%- set d = _script_dest.results[loop.index0].stat -%}
+              {%- if not d.exists -%}
+              {%- set ns.l = ns.l + [src.item ~ ': not installed; install_scripts=true puts it in ' ~ _bin_dir] -%}
+              {%- elif d.checksum == src.stat.checksum -%}
+              {%- set ns.l = ns.l + [src.item ~ ': current, ' ~ d.path] -%}
+              {%- else -%}
+              {%- set ns.l = ns.l + [src.item ~ ': ' ~ d.path ~ ' differs from the collection'
+                    ~ "'s; install_scripts=true replaces "
+                    ~ (('it, with a backup' if d.path == _bin_dir ~ '/' ~ src.item
+                        else 'the copy in ' ~ _bin_dir ~ ', not this one'))] -%}
+              {%- endif -%}
+              {%- endfor -%}
+              {%- if _install and _bin_dir not in lookup('ansible.builtin.env', 'PATH').split(':') -%}
+              {%- set ns.l = ns.l + ['WARNING: ' ~ _bin_dir ~ ' is not on your PATH'] -%}
+              {%- endif -%}
+              {{ ns.l }}
+
+        - name: Ensure the scripts' directory exists
+          ansible.builtin.file:
+            path: "{{ _bin_dir }}"
+            state: directory
+            mode: "0755"
+          when: _install
+
+        - name: Install the controller scripts
+          ansible.builtin.copy:
+            src: "{{ _collection_root }}/examples/{{ item }}"
+            dest: "{{ _bin_dir }}/{{ item }}"
+            mode: "0755"
+            backup: true
+          loop: "{{ _scripts }}"
+          when: _install

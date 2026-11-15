@@ -1,0 +1,70 @@
+---
+# What an existing install needs to do for each release, read by the
+# playbook update_check. Newest first. The prose is in CHANGES.md, under
+# "Action needed on an existing install"; this file says the same, for a
+# playbook to read. A release adds its entry here (dev/releasing.md).
+#
+#   version:    the release
+#   run:        playbook runs it needs, in order: {playbook, tags?, note?}
+#   image:      true when the image recipe changed: the role refuses to
+#               rebuild an existing sandbox_image_tag, so the inventory
+#               needs a new tag, and default_tag is the role's new default
+#   variables:  new variables, with what they do; set in the inventory only
+#               to change the role default
+#   scripts:    controller scripts from examples/ that are new or changed
+#   note:       anything else, in one or two sentences
+releases:
+  - version: "0.5.0"
+    run:
+      - playbook: sandbox
+        tags: [agentbox]
+        note: installs tmux and the launcher with --tmux and --list
+    image: false
+    variables: []
+    scripts: [agentbox-remote]
+    note: >-
+      agentbox-remote starts or attaches a session from the controller.
+
+  - version: "0.4.0"
+    run:
+      - playbook: sandbox
+        tags: [agentbox]
+        note: builds the new image beside the old one; new managed settings
+    image: true
+    default_tag: "0.4.0"
+    variables:
+      - name: agentbox_peer_links
+        about: Agent Intercom links between projects; off without links
+      - name: agentbox_peer_budget
+        about: messages between two linked projects before a person restarts one
+    scripts: []
+    note: >-
+      Claude Code 2.1.323. Bump sandbox_image_tag and
+      agentbox_claude_code_version together, as the example does.
+
+  - version: "0.3.0"
+    run:
+      - playbook: provision
+        note: applies vm_memory_mb and vm_cpus to a VM it finds off
+    image: false
+    variables: []
+    scripts: []
+
+  - version: "0.2.0"
+    run:
+      - playbook: sandbox
+        tags: [agentbox]
+    image: true
+    default_tag: "0.2.0"
+    variables:
+      - name: agentbox_git_tokens
+        about: per-project repository tokens, for the playbook git_token
+    scripts: []
+
+  - version: "0.1.0"
+    run:
+      - playbook: sandbox
+    image: true
+    default_tag: "0.1.0"
+    variables: []
+    scripts: []

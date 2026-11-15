@@ -94,7 +94,9 @@ Every playbook passes `--syntax-check` first. A release that changes a
 role an existing install runs also gets the
 [upgrade test](#upgrade-of-an-existing-install): `sandbox --check --diff`
 on a VM built from the previous release, which should show exactly the
-changes the release's CHANGES.md lists, and `changed=0` once applied.
+changes the release's CHANGES.md lists, and `changed=0` once applied. Before the
+upgrade, `update_check` lists the release's entry in `meta/updates.yml`
+and nothing that does not apply to that VM; after it, `Up to date`.
 
 A release that changes Claude Code's version, the managed settings or the
 launcher also repeats the [known unknowns](design.md#how-they-were-tested)
@@ -621,6 +623,9 @@ passed, on the final commit. Not tested: a linked session under `--tmux`.
   release test, tested only by hand
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
 - A linked session under `--tmux`.
+- `update_check` against a VM: so far run only on a stand-in host with a
+  local connection, and against a VM that was off. The stamp `sandbox`
+  writes was tested the same way, with the roles left out.
 - The full run of steps 1 to 9, and the known-unknowns session, on the
   launcher of `v0.5.0`: [skipped](#the-release-test-of-v050).
 - Linked sessions: a broker restart with sessions open, and logins other

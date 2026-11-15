@@ -1839,3 +1839,22 @@ decision that is revised keeps its number and says so.
     WebSocket and a JavaScript terminal, for little more than what
     `ssh -t` and tmux give. Getting there is `examples/agentbox-remote`,
     one command on the controller, outside the collection's roles.
+23. **An update is reported, not applied, beyond what the roles own**
+    (`update_check`, README,
+    [What an update needs](../README.md#what-an-update-needs)). The roles
+    already bring a new release to the VM on the next `sandbox` run; what
+    no run changes is the user's inventory and the scripts copied from
+    `examples/`. The playbook says what an update means for those, and
+    edits no inventory file: a rewrite would lose the user's comments and
+    order, and the values are the user's policy. Each `sandbox` run stamps
+    the roles it ran with the collection's version, in
+    `/etc/agent-sandbox/deployed.json`, per role so that a run with
+    `--tags` does not claim the others, and without a date so that a
+    second run stays `changed=0`. What each release needs is in
+    `meta/updates.yml`, beside the prose in CHANGES.md, because a
+    playbook cannot rely on the wording of a bullet. Controller scripts
+    are installed only on request (`install_scripts=true`), into
+    `~/.local/bin` by default, with a backup of a copy that differs: it is
+    the one place the collection writes outside the VM and the working
+    directory. Going back to an older tag stays possible, so `sandbox`
+    warns about it and goes on.

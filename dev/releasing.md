@@ -49,22 +49,29 @@ or insecure are released at once.
 ## How to release
 
 1. The changes are in CHANGES.md under `[Unreleased]`.
-2. The release tests from [docs/release-tests.md](../docs/release-tests.md)
+2. `meta/updates.yml` has an entry for the release, newest first: the
+   playbook runs an existing install needs, whether the image recipe
+   changed and the new default tag, the new variables, and the controller
+   scripts from `examples/` that are new or changed. It says what
+   "Action needed on an existing install" says in CHANGES.md; the
+   playbook `update_check` reads it. A release with nothing to do still
+   gets an entry, with an empty `run`.
+3. The release tests from [docs/release-tests.md](../docs/release-tests.md)
    that the change needs have run, and are recorded there: the full run
    for code changes, the upgrade test from the previous tag where a role
    changed, and the known-unknowns session where Claude Code, the managed
    settings or the launcher changed.
-3. `galaxy.yml` has the new version, and so have the README's pinned
+4. `galaxy.yml` has the new version, and so have the README's pinned
    install examples: the command and `requirements.yml` under "Install",
    the command under "Updating the collection".
-4. CHANGES.md: `[Unreleased]` becomes `## [x.y.z] - <date> — <name>`, under
+5. CHANGES.md: `[Unreleased]` becomes `## [x.y.z] - <date> — <name>`, under
    a fresh empty `[Unreleased]`.
-5. One commit on `main`, subject `Release vX.Y.Z — <name>`, and an annotated
+6. One commit on `main`, subject `Release vX.Y.Z — <name>`, and an annotated
    tag `vX.Y.Z` with the message `vX.Y.Z — <name>`. Without a name, the
    bare version in all three places.
-6. `main` and the tag pushed.
-7. The GitHub release created from the tag the same day (below).
-8. The release announced on Mastodon and X, by hand, once the GitHub
+7. `main` and the tag pushed.
+8. The GitHub release created from the tag the same day (below).
+9. The release announced on Mastodon and X, by hand, once the GitHub
    release is up ([Announcing](#announcing)).
 
 ## GitHub releases

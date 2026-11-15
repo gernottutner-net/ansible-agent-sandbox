@@ -28,6 +28,7 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
 - [Requirements](#requirements)
 - [Install](#install)
 - [Updating the collection](#updating-the-collection)
+  - [What an update needs](#what-an-update-needs)
 - [Configure](#configure)
 - [Create the VM and the sandbox](#create-the-vm-and-the-sandbox)
 - [Check the sandbox](#check-the-sandbox)
@@ -147,7 +148,14 @@ A new release is installed the same way, over the old one:
    ansible-galaxy collection list tutner.agent_sandbox     # shows the new version
    ```
 
-4. See what it would change on the VM, then apply it:
+4. Ask what the update needs, on the VM and on the controller
+   ([below](#what-an-update-needs)), and change your files where it says:
+
+   ```bash
+   ansible-playbook tutner.agent_sandbox.update_check
+   ```
+
+5. See what it would change on the VM, then apply it:
 
    ```bash
    ansible-playbook tutner.agent_sandbox.provision
@@ -159,12 +167,52 @@ From a Git URL, `ansible-galaxy` installs every time, also an older tag
 over a newer one, so `--force` is not needed. It replaces the installed
 collection as a whole: a change made by hand inside it is lost. Your
 working directory is not touched: the inventory, `host_vars`,
-`group_vars`, `ansible.cfg` and the snapshot state stay as they are. A
-release may bring new variables: compare your files with `examples/` at
-the new tag.
+`group_vars`, `ansible.cfg` and the snapshot state stay as they are.
 
 To go back, install the previous tag the same way, and restore the
-snapshot.
+snapshot. `sandbox` warns when the installed collection is older than the
+one that last applied the VM, and goes on.
+
+### What an update needs
+
+Everything the roles put on the VM reaches it with the next `sandbox` run:
+the launcher, the managed settings, new packages. What no playbook run
+changes is yours: your inventory, and the scripts from `examples/` you
+copied to the controller. `update_check` says what an update means for
+both, and changes nothing:
+
+```bash
+ansible-playbook tutner.agent_sandbox.update_check                        # report only
+ansible-playbook tutner.agent_sandbox.update_check -e install_scripts=true
+```
+
+- **On the VM**, which release last applied each role. Every `sandbox`
+  run records it in `/etc/agent-sandbox/deployed.json`, for the roles it
+  ran: after `--tags agentbox`, only for `agentbox`. A VM that a release
+  before 0.6.0 set up has no such record yet; one `sandbox` run writes it.
+- **For every release since**: the playbooks to run, in order; whether
+  the image recipe changed, so that `sandbox_image_tag` needs a new value,
+  with yours and the new default; the new variables, each with whether
+  your inventory sets it and what it does; and the controller scripts that
+  are new or changed. It reads this from the collection's
+  `meta/updates.yml`, which says what CHANGES.md says under "Action needed
+  on an existing install".
+- **In your inventory**, the variables `examples/` sets and yours does
+  not. The roles have a default for each, so a missing one is not an
+  error; it may be one you would want to set.
+- **On the controller**, each script from `examples/`, such as
+  [`agentbox-remote`](#from-the-controller): not installed, current, or
+  different from the collection's copy. It looks on your `PATH` first,
+  then in `agent_sandbox_bin_dir` (default `~/.local/bin`, settable in
+  your inventory). With
+  `-e install_scripts=true` it copies them there, keeping a copy that
+  differs as a backup next to it, and warns when that directory is not on
+  your `PATH`.
+
+A VM that is off gets a line saying so; the controller's part runs all the
+same. On `main`, the collection still reports the last release's version,
+so `update_check` lists what the releases up to it need, not what `main`
+changed since.
 
 ## Configure
 
@@ -476,8 +524,12 @@ session.
 ### From the controller
 
 [`examples/agentbox-remote`](examples/agentbox-remote) runs the launcher
-over SSH, so a session is one command on the controller. Copy or link it
-into a directory on your `PATH`, then:
+over SSH, so a session is one command on the controller. Install it into
+`~/.local/bin`, or the directory `agent_sandbox_bin_dir` names, with
+`ansible-playbook tutner.agent_sandbox.update_check -e install_scripts=true`;
+the same command replaces it after an update
+([What an update needs](#what-an-update-needs)). Or copy it into a
+directory on your `PATH` yourself. Then:
 
 ```bash
 agentbox-remote <project>                   # agentbox <project>, on the VM

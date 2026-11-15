@@ -7,10 +7,48 @@
 # Role order is load-bearing: egress_proxy and agentbox build on podman, and
 # agentbox needs the proxy's allowlist. The policy values come from the
 # inventory; see examples/.
+#
+# Each role this run applied is stamped on the VM with the collection's
+# version (_sandbox_deployed_stamp), for the playbook update_check.
 - name: Hosts running sandboxed agentic workloads
   hosts: agent_sandbox
   gather_facts: true
   become: true
+  vars_files:
+    - vars/collection.yml
+
+  pre_tasks:
+    - name: Read which collection version last applied each role
+      ansible.builtin.slurp:
+        src: "{{ _sandbox_deployed_stamp }}"
+      register: _stamp_file
+      failed_when: false
+      tags: [always]
+
+    - name: Record the stamp
+      ansible.builtin.set_fact:
+        _stamp: >-
+          {{ (_stamp_file.content | b64decode | from_json)
+             if _stamp_file.content is defined else {} }}
+      tags: [always]
+
+    # Going back to an older tag is allowed (README, "Updating the
+    # collection"), so this warns and goes on.
+    - name: Warn when the installed collection is older than what applied the VM
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: the installed collection is {{ _collection_version }}, older
+          than what last applied {{ _newer | join(', ') }} on this VM
+          ({{ _stamp }}). Go on only if you mean to go back; otherwise install
+          the newer release first.
+      vars:
+        _newer: >-
+          {{ _stamp | dict2items
+             | selectattr('value', 'version', _collection_version, '>')
+             | map(attribute='key') | list }}
+      when: _newer | length > 0
+      tags: [always]
+
   roles:
     - role: tutner.agent_sandbox.podman
       tags: [podman]
@@ -20,3 +58,34 @@
 
     - role: tutner.agent_sandbox.agentbox
       tags: [agentbox]
+
+  post_tasks:
+    - name: Ensure the stamp's directory exists
+      ansible.builtin.file:
+        path: "{{ _sandbox_deployed_stamp | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      tags: [always]
+
+    # Only the roles whose tag this run selected: after --tags agentbox,
+    # podman and egress_proxy keep the version that last applied them.
+    - name: Stamp the roles this run applied with the collection's version
+      ansible.builtin.copy:
+        content: "{{ _stamp | combine(_applied) | to_nice_json }}\n"
+        dest: "{{ _sandbox_deployed_stamp }}"
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        _selected: >-
+          {{ (_sandbox_role_tags.values() | list)
+             if 'all' in ansible_run_tags else ansible_run_tags }}
+        _applied: >-
+          {{ dict(_sandbox_role_tags | dict2items
+                  | selectattr('value', 'in', _selected)
+                  | rejectattr('value', 'in', ansible_skip_tags)
+                  | map(attribute='key')
+                  | zip_longest([], fillvalue=_collection_version)) }}
+      tags: [always]

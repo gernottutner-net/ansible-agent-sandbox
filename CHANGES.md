@@ -5,6 +5,25 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-15
+
+#### Added
+
+- New playbook `update_check`: what a collection update means for an existing install, without changing anything. For each VM, the collection version that last applied each role, and for every release since then the playbook runs it needs in order, whether the image recipe changed (with the inventory's `sandbox_image_tag` and the new default), the new variables with whether the inventory sets them, and the controller scripts that are new or changed; then the variables `examples/` sets and the inventory does not. On the controller, each script from `examples/` (now `agentbox-remote`): not installed, current, or different, looked up on `PATH` and in `agent_sandbox_bin_dir` (default `~/.local/bin`). `-e install_scripts=true` installs them there, with a backup of a copy that differs, and warns when the directory is not on `PATH`. A VM that is off gets a line saying so; the controller's part runs all the same. **Action needed on an existing install:** none; run `sandbox` once so the VM gets its stamp.
+- `meta/updates.yml`: what each release since 0.1.0 needs on an existing install, for `update_check` to read; the machine-readable form of "Action needed on an existing install".
+- `sandbox` stamps the roles it ran with the collection's version in `/etc/agent-sandbox/deployed.json` on the VM, per role and without a date, so a run with `--tags` stamps only the roles it selects and a second run stays `changed=0`. It warns, and goes on, when the installed collection is older than what last applied a role. The version comes from `MANIFEST.json` of an installed collection, or `galaxy.yml` in a clone (`playbooks/vars/collection.yml`).
+- `examples/group_vars/agent_sandbox.yml`: `agent_sandbox_bin_dir`, commented out.
+
+#### Changed
+
+- README, "Updating the collection": a new step 4 runs `update_check`; new subsection "What an update needs", in the table of contents; going back says that `sandbox` warns. "From the controller": install `agentbox-remote` with `update_check -e install_scripts=true`, which also replaces it after an update.
+- `dev/releasing.md`, "How to release": a new step 2, the release's entry in `meta/updates.yml`; the later steps renumbered.
+- `docs/release-tests.md`: the upgrade test also runs `update_check` before and after; "Not covered yet" names `update_check` against a running VM.
+
+#### Decisions
+
+- Decision 23: an update is reported, not applied, beyond what the roles own. `update_check` edits no inventory file, whose comments, order and values are the user's; the stamp is per role and dateless; the release actions live in `meta/updates.yml`, not parsed from CHANGES.md; controller scripts are installed only on request; `sandbox` warns about a downgrade and goes on.
+
 ## [0.5.0] - 2026-11-15 — TMUX
 
 ### 2026-11-15

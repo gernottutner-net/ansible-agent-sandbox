@@ -1,0 +1,22 @@
+---
+# The installed collection's own version, and where the VM records which
+# version last applied each role. Shared by playbooks/sandbox.yml and
+# playbooks/update_check.yml.
+#
+# An install from Git carries MANIFEST.json, built from galaxy.yml; a clone
+# of the repository carries galaxy.yml only.
+_collection_root: "{{ playbook_dir | dirname }}"
+_collection_version: >-
+  {{ (lookup('ansible.builtin.file', _collection_root ~ '/MANIFEST.json') | from_json).collection_info.version
+     if (_collection_root ~ '/MANIFEST.json') is file
+     else (lookup('ansible.builtin.file', _collection_root ~ '/galaxy.yml') | from_yaml).version }}
+
+# On the VM: {"<role>": "<collection version>"}, one entry per role the
+# playbook sandbox applied. No date in it, so a second run stays changed=0.
+_sandbox_deployed_stamp: /etc/agent-sandbox/deployed.json
+
+# The sandbox roles and the tag that selects each.
+_sandbox_role_tags:
+  podman: podman
+  egress_proxy: egress
+  agentbox: agentbox

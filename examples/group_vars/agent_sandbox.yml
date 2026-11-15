@@ -68,3 +68,8 @@ agentbox_sandbox_allow_write:
 #   - { from: alpha, to: beta }
 #   - { from: beta, to: alpha }
 # agentbox_peer_budget: 40
+
+# ---- update_check -------------------------------------------------------------
+# Where update_check -e install_scripts=true puts the controller scripts from
+# examples/, such as agentbox-remote. See the README, "What an update needs".
+# agent_sandbox_bin_dir: "~/.local/bin"
