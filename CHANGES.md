@@ -5,6 +5,8 @@ level.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-15 — Agent Intercom
+
 ### 2026-11-15
 
 #### Changed
