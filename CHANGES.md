@@ -9,6 +9,7 @@ level.
 
 #### Changed
 
+- README, "Repository tokens": no longer says that Claude Code's sandbox keeps the commands Claude runs from writing `.git/config`. Claude wrote the upstream there with `git push -u` in the release tests of `v0.3.0` and `v0.4.0`, and not in that of `v0.2.0`; why is not known. The README now says not to count on it, and to treat `.git/config` like the rest of `/work`. "Updating Claude Code": the prefix example becomes `0.4.0-cc2.x.y`, the image tag of this release. `docs/release-tests.md`, finding 1 of `v0.4.0`, says the README changed.
 - `docs/release-tests.md`: new section "The release test of v0.4.0", listed in the table of contents and the intro. "Not covered yet": the `.git/config` bullet names the release test of `v0.4.0` too.
 
 #### Notes

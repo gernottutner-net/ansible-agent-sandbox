@@ -543,9 +543,10 @@ contradicts, and two things worth knowing:
    sandbox, and the upstream landed in `.git/config`
    (`branch.rt-v040-permanent.remote` and `.merge`), with Claude Code
    2.1.323, as in the [release test of v0.3.0](#observations) with 2.1.284.
-   The README's "Repository tokens" still says that `git push -u` records
+   The README's "Repository tokens" said then that `git push -u` records
    no upstream and that `git config` in the repository fails, from the
-   [release test of v0.2.0](#findings). Not changed with this record.
+   [release test of v0.2.0](#findings). It was changed after this record,
+   before the release, and no longer promises either.
 2. **A credential helper that picks the token per repository needs
    `git_config`.** The first `git_token` run failed with the helper's own
    message, because the token's name was in the clone's `.git/config` on

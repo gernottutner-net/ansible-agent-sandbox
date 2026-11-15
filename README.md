@@ -510,10 +510,13 @@ them on its own, through a credential helper in the image, so the token
 never ends up in `.git/config` or a remote URL; the launcher names each
 token's host and lifetime as the session starts.
 
-Claude Code's sandbox keeps the commands Claude runs from writing
-`.git/config`: Claude can commit and push, but `git push -u` records no
-upstream, though it says so and exits 0, and `git config` in the
-repository fails. Set those up in `agentbox <project> bash`.
+Do not count on Claude Code's sandbox to keep the commands Claude runs
+from writing `.git/config`. In one release test `git push -u` recorded no
+upstream, though it said so and exited 0; in the two after it, with the
+same and a newer Claude Code, the upstream landed in `.git/config`. Why
+it differs is not known ([docs/release-tests.md](docs/release-tests.md#what-it-found)).
+So `.git/config`, like the rest of `/work`, is what Claude may have
+written. Set up git configuration you want in `agentbox <project> bash`.
 
 A token is readable by every command Claude runs: git is one of them, and
 has to read it. Claude's Read tool can read it too: a deny rule for the
@@ -681,7 +684,7 @@ Code version is recommended:
 - It cannot be confused with a later default of the collection, which
   names its own tags `X.Y.Z`.
 - After a collection upgrade that changes the image, move the prefix
-  along, as in `0.3.0-cc2.x.y`.
+  along, as in `0.4.0-cc2.x.y`.
 - Use `-`, not semver's `+`: image tags do not allow `+`.
 
 A [diagram](docs/images/claude-code-image.svg) shows how Claude Code gets
