@@ -2,8 +2,9 @@
 # {{ ansible_managed }}
 # The only supported way to start a sandbox session:
 #
-#   agentbox <project> [command ...]
-#   agentbox --auto <project> [claude-args ...]
+#   agentbox [--tmux] <project> [command ...]
+#   agentbox [--tmux] --auto <project> [claude-args ...]
+#   agentbox --list
 #
 # Runs {{ _agentbox_image }} with <project> from {{ _agentbox_projects_dir }}
 # mounted at /work, and the command (default: claude) inside it. With --auto,
@@ -17,12 +18,16 @@
 # from the environment or the command line, so no session can forget a limit.
 # Repository tokens the git_token playbook wrote for <project> are mounted
 # read-only; a session token is deleted when the session ends.
+# With --tmux, the session runs inside the tmux session agentbox-<project>,
+# which outlives the connection; the same command attaches to it later.
+# --list shows the projects and which of them run.
 {% if agentbox_peer_links %}
 # A plain interactive session in a project with a link is linked: it gets its
 # socket to the peer broker, and Claude Code's channels, which need telemetry
 # on. --auto, a -p run or any other command is not, and stays as it is.
 {% endif %}
-# See README.md, "The launcher", and docs/design.md, "Repository tokens".
+# See README.md, "The launcher" and "Sessions that outlive the connection",
+# and docs/design.md, "The launcher contract" and "Repository tokens".
 set -eu
 
 die() {
@@ -33,7 +38,82 @@ die() {
 [ "$(id -un)" = {{ sandbox_user | quote }} ] \
     || die "run as {{ sandbox_user }}, e.g. sudo -iu {{ sandbox_user }} agentbox <project>"
 
-usage="usage: agentbox <project> [command ...] | agentbox --auto <project> [claude-args ...]"
+usage="usage: agentbox [--tmux] <project> [command ...] | agentbox [--tmux] --auto <project> [claude-args ...] | agentbox --list"
+
+# One directory by name: no slashes, no dot-names, nothing that could reach
+# outside the projects directory.
+check_name() {
+    case $1 in
+        [A-Za-z0-9]*) ;;
+        *) die "project name must start with a letter or digit: $1" ;;
+    esac
+    case $1 in
+        *[!A-Za-z0-9._-]*) die "project name may contain only letters, digits, '.', '_' and '-': $1" ;;
+    esac
+}
+
+# sudo -i does not set it, and rootless Podman finds the user's systemd
+# instance through it.
+: "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
+export XDG_RUNTIME_DIR
+
+# The tmux session of a project. tmux turns '.' in a session name into '_',
+# which would make my.app and my_app one session; '+' is in no project name.
+tmux_session() {
+    printf 'agentbox-%s' "$(printf '%s' "$1" | tr . +)"
+}
+
+# The projects, and which of them have a session: "running" for the
+# container, "tmux" for a tmux session.
+if [ "${1:-}" = --list ]; then
+    [ $# -eq 1 ] || die "$usage"
+    for dir in {{ _agentbox_projects_dir | quote }}/*/; do
+        [ -d "$dir" ] || continue
+        name=${dir%/}
+        name=${name##*/}
+        state=
+        if podman container exists "agentbox-$name"; then state=running; fi
+        if tmux has-session -t "=$(tmux_session "$name")" 2>/dev/null; then state="${state:+$state }tmux"; fi
+        printf '%s%s\n' "$name" "${state:+  $state}"
+    done
+    exit 0
+fi
+
+# A session that outlives the connection: this launcher again, inside the
+# project's tmux session (agentbox-<project>, '.' as '+'), or an attach to
+# it if it is there. A dropped connection hangs up only the tmux client; the
+# launcher in the pane keeps running. tmux kill-session hangs up the pane,
+# and the launcher stops the container as for a lost terminal. The tmux
+# server starts in a scope of the sandbox user's own systemd instance, which
+# lingers, not in the login session of whoever ran sudo, so a logout does
+# not take it along.
+if [ "${1:-}" = --tmux ]; then
+    shift
+    inner=
+    if [ "${1:-}" = --auto ]; then
+        inner=--auto
+        shift
+    fi
+    [ $# -ge 1 ] || die "$usage"
+    project=$1
+    shift
+    check_name "$project"
+    [ -t 0 ] && [ -t 1 ] || die "--tmux needs a terminal; over SSH, use ssh -t"
+    session=$(tmux_session "$project")
+    if tmux has-session -t "=$session" 2>/dev/null; then
+        [ -z "$inner" ] && [ $# -eq 0 ] \
+            || die "a session in $project is running already; attach with agentbox --tmux $project"
+        exec tmux attach-session -t "=$session"
+    fi
+    # Checked before tmux starts: the launcher in the pane would refuse it
+    # too, but the pane would close before anyone read why.
+    if podman container exists "agentbox-$project"; then
+        die "a session in $project is running already (container agentbox-$project), outside tmux"
+    fi
+    exec systemd-run --user --scope --quiet --collect -- \
+        tmux new-session -s "$session" -- \
+        {{ agentbox_launcher_path | quote }} ${inner:+"$inner"} "$project" "$@"
+fi
 
 auto=
 if [ "${1:-}" = --auto ]; then
@@ -66,20 +146,7 @@ if [ -n "$auto" ]; then
     set -- claude --dangerously-skip-permissions "$@"
 fi
 
-# One directory by name: no slashes, no dot-names, nothing that could reach
-# outside the projects directory.
-case $project in
-    [A-Za-z0-9]*) ;;
-    *) die "project name must start with a letter or digit: $project" ;;
-esac
-case $project in
-    *[!A-Za-z0-9._-]*) die "project name may contain only letters, digits, '.', '_' and '-': $project" ;;
-esac
-
-# sudo -i does not set it, and rootless Podman finds the user's systemd
-# instance through it.
-: "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
-export XDG_RUNTIME_DIR
+check_name "$project"
 
 podman image exists {{ _agentbox_image | quote }} \
     || die "image {{ _agentbox_image }} is missing; run the sandbox playbook with --tags agentbox"
@@ -171,7 +238,13 @@ else
 fi
 
 # No exec: the launcher waits, to stop the container on a signal and to
-# delete a session token afterwards.
+# delete a session token afterwards. Not in the foreground either: the shell
+# runs a trap only once a foreground command has returned, and when tmux
+# closes a pane, the hangup reaches the launcher, not podman's client, which
+# then keeps it waiting (seen 2026-11-15). wait returns at once on a trapped
+# signal. A background command gets /dev/null as its stdin, so the client
+# gets the launcher's through fd 3.
+exec 3<&0
 podman run --rm --interactive ${tty:+"$tty"} \
     --name "agentbox-$project" \
 {# claude does not reap orphans as PID 1; the zombies of its sandboxed
@@ -205,4 +278,9 @@ podman run --rm --interactive ${tty:+"$tty"} \
     ${auto:+{{ ('--env=' ~ name ~ '=' ~ value) | quote }}} \
 {% endfor %}
     ${secret:+"$secret"} \
-    {{ _agentbox_image | quote }} "$@"
+    {{ _agentbox_image | quote }} "$@" 0<&3 3<&- &
+podman_pid=$!
+exec 3<&-
+status=0
+wait "$podman_pid" || status=$?
+exit "$status"

@@ -37,6 +37,7 @@ named are the ones tested: Debian 13, Podman 5.4.2, Squid 6.13, kernel
   - [`agentbox`: image, managed settings and launcher](#agentbox-image-managed-settings-and-launcher)
 - [The policy surface](#the-policy-surface)
 - [The launcher contract](#the-launcher-contract)
+  - [Sessions that outlive the connection](#sessions-that-outlive-the-connection)
 - [Secrets, honestly](#secrets-honestly)
 - [Repository tokens](#repository-tokens)
   - [Two lifetimes](#two-lifetimes)
@@ -418,7 +419,8 @@ open; without one, both are rejected.
 - **The launcher**, `/usr/local/bin/agentbox`, described under
   [The launcher contract](#the-launcher-contract). The run policy is
   rendered into that one script, not read from the environment, so no
-  invocation can forget a limit.
+  invocation can forget a limit. With it, `tmux`, which the launcher's
+  `--tmux` runs a session in.
 - **The peer broker**, only with `agentbox_peer_links` set: a system unit
   `agentbox-peer`, its policy in `/etc/agentbox/peer-links.json` and the
   MCP configuration of linked sessions in `/etc/agentbox/peer-mcp.json`,
@@ -511,7 +513,9 @@ Notes on the allowlist:
 ## The launcher contract
 
 `agentbox <project> [command ...]` and `agentbox --auto <project>
-[claude-args ...]` are the only supported ways to start a session. Run as
+[claude-args ...]` are the only supported ways to start a session, either
+of them behind `--tmux` ([below](#sessions-that-outlive-the-connection)).
+Run as
 `agent` (for example `sudo -iu agent agentbox <project>`), the launcher
 checks that `<project>` is a single plain name (letters, digits, `.`, `_`,
 `-`, starting with a letter or digit) and that the image and the managed
@@ -585,9 +589,15 @@ the launcher stops the container (`podman stop`, ten seconds before
 not the container, which `conmon` keeps running, detached and holding the
 project's name, until stopped by hand (seen 2026-11-02, and so already
 true of `v0.1.0`). That, and deleting a session token, is why the launcher
-runs `podman run` and waits for it rather than `exec`ing it. A run meant to
-outlive the connection goes under `tmux`, or `nohup`, which ignores the
-hangup.
+runs `podman run` and waits for it rather than `exec`ing it. It runs it in
+the background and waits with `wait`, which a trapped signal ends at once;
+a foreground command would hold the trap until the client returns, which
+it never does when only the launcher is hung up, as under tmux. The client
+gets the launcher's stdin through a spare file descriptor, since a
+background command would get `/dev/null`. A session
+meant to outlive the connection runs under `--tmux`
+([below](#sessions-that-outlive-the-connection)); an `--auto -p` run can
+also go under `nohup`, which ignores the hangup.
 
 **Linked sessions.** With `agentbox_peer_links` set, plain
 `agentbox <project>` on a terminal, in a project in a link, adds the
@@ -638,6 +648,66 @@ Notes on the specifics:
   breaks `npm install` and `apt` inside the container, which are exactly
   the operations the allowlist exists to permit. Worth revisiting once
   nothing needs to write outside `/work`.
+
+### Sessions that outlive the connection
+
+`agentbox --tmux [--auto] <project> [args ...]` runs the launcher again,
+unchanged, inside a tmux session, or attaches to that session if it is
+there. tmux wraps the launcher, not the reverse, so the run policy stays in
+the one `podman run` line above, and a session under tmux is the same as
+one without.
+
+- **Name.** `agentbox-<project>`, with `.` as `+`: tmux turns `.` and `:`
+  in session names into `_`, which would make `my.app` and `my_app` one
+  session. `+` is in no project name. The socket is tmux's default,
+  `/tmp/tmux-<uid>/` with mode `0700`, so `tmux ls` and
+  `tmux kill-session` typed as `agent` find it. A pane command such as
+  `capture-pane` needs the session with a colon, `-t '=agentbox-my+app:'`;
+  `+` alone reads as an offset there (seen 2026-11-15).
+- **Checks before tmux starts.** The name is checked by the same rules. An
+  existing tmux session is attached, and with arguments refused, so a
+  second start cannot be mistaken for a new session. A running container
+  of a plain session is refused here, not by the launcher in the pane: the
+  pane would close before anyone read why. No terminal, no start.
+- **Lifetime.** A detach or a dropped connection hangs up the tmux client,
+  not the pane, so the launcher keeps running. `tmux kill-session` hangs
+  up the pane; the launcher's HUP trap then stops the container and
+  deletes a session token, as for a lost terminal. That needs the launcher
+  to wait for `podman run` in the background (see
+  [A lost terminal ends the session](#the-launcher-contract)): a closed pane
+  hangs up only the launcher, the pane's session leader, not podman's
+  client, and with the client in the foreground the trap waited for it
+  forever (seen 2026-11-15). When the command in the pane ends, so does the
+  tmux session, with its screen.
+- **Where the tmux server runs.** `systemd-run --user --scope` puts it in a
+  scope of `agent`'s systemd user instance, which exists because `agent`
+  lingers, rather than in the login session of the account that ran
+  `sudo`. A logout of that account then does not take the server along,
+  whatever logind's `KillUserProcesses` says. Later tmux sessions are
+  created by the same server and live in its scope; tmux 3.5 puts each
+  pane into a scope of its own beside it.
+
+Tested on 2026-11-15, Debian 13 with tmux 3.5a, from the controller with
+`agentbox-remote`: start, detach, reattach; the session survived `kill -9`
+on the `ssh` client and the end of the login session that started it; the
+tmux server in `user@<uid>.service`, not in the login's `session-*.scope`;
+`--list`; `kill-session` stopped the container and deleted a session token;
+the refusals both ways round; `my.app` style names; an argument with
+quotes, `$HOME`, backticks, `$(…)`, `\`, `;` and `*` reached the container
+unchanged; keys reached Claude Code's first-run screen in the pane. The
+plain path after the change to `wait`: input typed on a terminal, the exit
+status with and without a terminal, piped stdin, `kill -9` on the `ssh`
+client, and `SIGTERM`, `SIGINT` and `SIGHUP` to the launcher on the VM,
+each stopping the container and deleting a session token. Not tested: a
+linked session under `--tmux`.
+
+`examples/agentbox-remote` on the controller runs the launcher over
+`ssh -t` as `sudo -u agent -H -- sh -c 'cd && exec agentbox "$@"'`, not
+`sudo -iu agent`. `sudo -i` passes the command to the target's login shell,
+escaping every character but letters, digits, `_`, `-` and `$`, so that
+shell would expand a `$NAME` inside a `-p` task. `sh -c` with `"$@"` passes
+the arguments on as they are; the one quoting layer left is for the login
+shell of the account Ansible uses, which `ssh` hands the command line to.
 
 ---
 
@@ -1755,3 +1825,17 @@ decision that is revised keeps its number and says so.
     where a person decides, so the managed settings set manual mode back;
     a person can still switch a session to auto mode, and `--auto` still
     runs in bypass mode (tested 2026-11-13).
+22. **Sessions outlive the connection in tmux, on the VM, behind the
+    launcher** (`--tmux`,
+    [Sessions that outlive the connection](#sessions-that-outlive-the-connection)).
+    A lost terminal ends a plain session on purpose, so that no container
+    keeps running unseen. `--tmux` is the explicit way around it: the
+    session goes on, with a name `--list` shows and `tmux kill-session`
+    ends. tmux on the VM, not in the container, where it would run inside
+    the limits and the inner sandbox and be gone with `--rm`; behind the
+    launcher, not in it, so the `podman run` line stays the one place of
+    the run policy. A browser terminal was considered instead, and left
+    out: it would need a web service holding a way into every session, a
+    WebSocket and a JavaScript terminal, for little more than what
+    `ssh -t` and tmux give. Getting there is `examples/agentbox-remote`,
+    one command on the controller, outside the collection's roles.

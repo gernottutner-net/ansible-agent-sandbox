@@ -1,0 +1,46 @@
+#!/bin/sh
+# agentbox-remote: start or attach a sandbox session from the controller.
+#
+#   agentbox-remote [--tmux] <project> [command ...]
+#   agentbox-remote [--tmux] --auto <project> [claude-args ...]
+#   agentbox-remote --list
+#
+# Runs the launcher on the VM over SSH, as the sandbox account, with the
+# arguments passed through unchanged. Copy or link it into a directory on
+# your PATH, e.g. ~/bin. See README.md, "From the controller".
+#
+#   AGENTBOX_HOST  the VM as ssh reaches it, as the account Ansible uses:
+#                  a Host from ~/.ssh/config or user@address
+#                  (default: sandbox-vm)
+#   AGENTBOX_USER  the sandbox account, sandbox_user (default: agent)
+set -eu
+
+host=${AGENTBOX_HOST:-sandbox-vm}
+user=${AGENTBOX_USER:-agent}
+
+[ $# -ge 1 ] || {
+    echo "usage: agentbox-remote [--tmux] [--auto] <project> [args ...] | agentbox-remote --list" >&2
+    exit 1
+}
+
+# One argument, quoted for the remote shell: '...' with each ' as '\''.
+sq() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+# ssh hands the remote side one command line, which the login shell of the
+# account Ansible uses parses once; everything below is quoted for that.
+# Not sudo -i: it passes the command to the sandbox account's login shell,
+# which would parse the arguments a second time and expand any $NAME in
+# them. sh -c with "$@" passes them on as they are; cd, because the
+# launcher's podman should not start in a directory the account cannot read.
+cmd="sudo -u $(sq "$user") -H -- sh -c 'cd && exec agentbox \"\$@\"' agentbox"
+for arg; do
+    cmd="$cmd $(sq "$arg")"
+done
+
+if [ "$1" = --list ]; then
+    exec ssh "$host" "$cmd"
+fi
+# -t: the session needs a terminal; --tmux refuses to start without one.
+exec ssh -t "$host" "$cmd"

@@ -98,6 +98,18 @@ A release that changes Claude Code's version, the managed settings or the
 launcher also repeats the [known unknowns](design.md#how-they-were-tested)
 session: its answers hold for the version they were tested on.
 
+A release that changes the launcher also checks
+[sessions that outlive the connection](../README.md#sessions-that-outlive-the-connection),
+started from the controller with
+[`agentbox-remote`](../README.md#from-the-controller): `--tmux` starts a
+session and attaches again after a detach, after `kill -9` on the `ssh`
+client and after every login of the account Ansible uses has ended;
+`--list` shows it as `running tmux`; `tmux kill-session` stops the
+container and deletes a `session` token; a second start with arguments,
+and a plain start beside it, are refused, both ways round; a project name
+with a `.` gets its own tmux session; an `--auto -p` task with quotes,
+spaces and `$HOME` in it reaches Claude unchanged.
+
 ### Afterwards
 
 Delete the snapshot state file by hand, as `docs/virtualbox.md` says, and
@@ -563,10 +575,13 @@ contradicts, and two things worth knowing:
   withholds `ANTHROPIC_API_KEY` from its commands by name; see the
   README's [Open questions](../README.md#open-questions).
 - Repository tokens: a push to a protected branch, which tests the remote,
-  not the collection; `SIGINT` and `SIGTERM` to the launcher on the VM,
-  tested only against a stand-in `podman`; a self-hosted GitLab in a
+  not the collection; `SIGINT` and `SIGTERM` to the launcher on the VM in
+  a release test, tested only outside one
+  ([docs/design.md, "Sessions that outlive the connection"](design.md#sessions-that-outlive-the-connection));
+  a self-hosted GitLab in a
   release test, tested only by hand
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
+- A linked session under `--tmux`.
 - Linked sessions: a broker restart with sessions open, and logins other
   than Pro, which probably need `channelsEnabled: true`
   ([docs/design.md, "What is open"](design.md#what-is-open)).

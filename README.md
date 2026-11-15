@@ -36,6 +36,8 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
 - [Tuning the VM](#tuning-the-vm)
 - [Sessions](#sessions)
   - [The launcher](#the-launcher)
+  - [Sessions that outlive the connection](#sessions-that-outlive-the-connection)
+  - [From the controller](#from-the-controller)
   - [Autonomous mode](#autonomous-mode)
   - [Logging in](#logging-in)
   - [Getting a project in](#getting-a-project-in)
@@ -403,8 +405,9 @@ agentbox <project> bash         # a shell instead, e.g. to clone first
   6 GB VM; about 240 MB each with Claude Code 2.1.323, on a 4 GB VM.
 - Everything outside `/work` and Claude Code's state is gone when the
   session ends (`--rm`). A lost terminal ends the session too: on a
-  dropped SSH connection the launcher stops the container. For a run that
-  should outlive the connection, start it under `tmux` or `nohup`.
+  dropped SSH connection the launcher stops the container. For a session
+  that should outlive the connection, use `--tmux`: see
+  [Sessions that outlive the connection](#sessions-that-outlive-the-connection).
 - The run policy is rendered into the launcher, not read from the
   environment or the command line: `--cap-drop=ALL`,
   `no-new-privileges`, the memory, CPU and process limits, no swap, the
@@ -436,6 +439,64 @@ missing:
   `agentbox_peer_links`, so the launcher on the VM has no links; or the
   session is not a plain `agentbox <project>` on a terminal
   ([Agent Intercom](#agent-intercom)).
+
+### Sessions that outlive the connection
+
+```bash
+agentbox --tmux <project>                     # start, or attach if it runs
+agentbox --tmux --auto <project> -p '<task>'  # the same, for --auto
+agentbox --list                               # the projects, and which run
+```
+
+`--tmux` starts the session inside a tmux session on the VM, named
+`agentbox-<project>` (a `.` in the name becomes `+`), and attaches to it.
+Detach with `Ctrl-b d`, or lose the connection: the session goes on. The
+same `agentbox --tmux <project>` attaches to it again, from any login on
+the VM. Everything else is as with a plain `agentbox <project>`: the same
+container, limits, tokens and, for a project in a link, the same linked
+session.
+
+- **One session per project, either way.** `--tmux` on a project whose
+  tmux session is there attaches, and refuses if you give it a command or
+  `--auto`. On a project with a plain session running, it refuses, and so
+  does a plain `agentbox <project>` while the tmux one runs.
+- **`--list`** prints each project in `~/projects`, with `running` when its
+  container is there and `tmux` when its tmux session is.
+- **Ending one:** exit Claude, or, from outside,
+  `tmux kill-session -t agentbox-<project>`. The launcher then stops the
+  container and deletes a `session` token, as for a lost terminal.
+- **The output goes with it.** When Claude exits, the tmux session closes,
+  and what was on its screen is gone. For an `--auto -p` run, have the task
+  write its result into a file in `/work`.
+- `--tmux` needs a terminal: over SSH, `ssh -t`.
+- The tmux server runs in a scope of `agent`'s own systemd instance, not in
+  the SSH login it was started from, so logging out does not end it. A
+  reboot of the VM does.
+
+### From the controller
+
+[`examples/agentbox-remote`](examples/agentbox-remote) runs the launcher
+over SSH, so a session is one command on the controller. Copy or link it
+into a directory on your `PATH`, then:
+
+```bash
+agentbox-remote <project>                   # agentbox <project>, on the VM
+agentbox-remote --tmux <project>            # start or reattach
+agentbox-remote --tmux --auto <project> -p '<task>'
+agentbox-remote --list
+```
+
+It takes the same arguments as the launcher and passes them on unchanged,
+quotes and `$` included. `AGENTBOX_HOST` names the VM as `ssh` reaches it,
+as the account Ansible uses: a `Host` from `~/.ssh/config`, or
+`ansible@192.168.56.10`; the default is `sandbox-vm`. `AGENTBOX_USER` is
+the sandbox account, `agent` unless `sandbox_user` says otherwise.
+
+It does not use `sudo -i`, which hands the command to the sandbox account's
+login shell: that shell would parse the arguments again and expand any
+`$NAME` in a `-p` task. Typed by hand on the VM, `sudo -iu agent agentbox …`
+does expand it; quote such a task for that shell too, or start the session
+from `agent`'s own shell.
 
 ### Autonomous mode
 

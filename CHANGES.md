@@ -7,10 +7,21 @@ level.
 
 ### 2026-11-15
 
+#### Added
+
+- Sessions that outlive the connection: the launcher's `--tmux` runs a session inside the tmux session `agentbox-<project>` on the VM (`.` in the name as `+`), or attaches to it if it is there; a detach or a lost connection leaves it running, `tmux kill-session` ends it as a lost terminal does. The tmux server starts in a scope of `agent`'s systemd user instance, so a logout does not end it. It refuses a second start with arguments, and a project with a plain session running, before tmux starts. `--list` shows the projects and which have a container or a tmux session. The `agentbox` role installs `tmux` on the VM. **Action needed on an existing install:** run `sandbox`, or `sandbox --tags agentbox`; no image rebuild.
+- `examples/agentbox-remote`: starts or attaches a session from the controller over `ssh -t`, with the launcher's arguments passed on unchanged. `AGENTBOX_HOST` and `AGENTBOX_USER` name the VM and the sandbox account. It runs `sudo -u agent -H -- sh -c …`, not `sudo -i`, whose login shell would expand a `$NAME` in a `-p` task.
+
 #### Changed
 
+- The launcher runs `podman run` in the background and waits for it with `wait`, so a signal to the launcher stops the container at once, also when the client is not signalled itself. Under tmux a closed pane hangs up only the launcher; with the client in the foreground the trap waited forever and the container kept running (found 2026-11-15, testing `--tmux`). The client still gets the terminal as its stdin. Plain sessions retested on the VM: typed input, exit status, piped stdin, `kill -9` on the `ssh` client, `SIGTERM`, `SIGINT` and `SIGHUP`.
+- README, "Sessions": new subsections "Sessions that outlive the connection" and "From the controller", in the table of contents; "The launcher" points there instead of to `tmux` or `nohup` by hand. `docs/design.md`, "The launcher contract": new subsection "Sessions that outlive the connection", in the table of contents, and the lost-terminal paragraph points to it; "`agentbox`: image, managed settings and launcher" names `tmux`. `docs/release-tests.md`: a check of `--tmux` and `agentbox-remote` for a release that changes the launcher.
 - README: says when a change to the inventory reaches the VM, after a token missing from a new project's session and a link that was in the inventory but not on the VM. "Configure": the VM knows only what a playbook wrote; a table of what to run after which change (`git_token`, `sandbox`, `provision`) and that running sessions have to start again. "The launcher": the lines it prints as a session starts, for each token and for a link, and what a missing one means. "Getting a project in": the `git_token` step before the session. "Agent Intercom": the exact line of a linked session, and that without it the session is not linked.
 - `.gitignore`: `/tmp/` in the repository root, for scratch files kept beside the clone, such as drafts of release announcements.
+
+#### Decisions
+
+- Decision 22: sessions outlive the connection in tmux, on the VM, behind the launcher. Not in the container, where tmux would run under the limits and be gone with `--rm`; not inside the launcher's `podman run` line, which stays the one place of the run policy. A browser terminal was considered and left out: a web service holding a way into every session, for little more than `ssh -t` and tmux give.
 
 ## [0.4.0] - 2026-11-15 — Agent Intercom
 

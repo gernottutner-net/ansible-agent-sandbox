@@ -137,6 +137,15 @@
     - "{{ _agentbox_projects_dir }}"
     - "{{ _agentbox_state_dir }}"
 
+# The launcher's --tmux runs a session inside tmux, so that it outlives the
+# connection.
+- name: Install tmux for sessions that outlive the connection
+  ansible.builtin.apt:
+    name: tmux
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Install the launcher
   ansible.builtin.template:
     src: agentbox.j2
