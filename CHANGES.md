@@ -5,6 +5,30 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-16
+
+#### Added
+
+- The editor (#15): VS Code for the browser beside each session. Microsoft's VS Code Server, run as `bin/code-server` from its server build, in a container `agentbox-<project>-editor` of its own on the same `/work`, reached from the controller through `ssh -L` to a socket in `/run/agentbox-editor/<project>/`. Off until `agentbox_editor_accept_server_license: true`, which accepts Microsoft's licence; until then the role installs nothing of it, and with the variable set back to `false` it removes everything but the image. The `agentbox` role then fetches the pinned server build on the VM (`agentbox_editor_vscode_version`, `_commit`, `_sha256`, checked by `get_url`), builds `localhost/agentbox-editor:<agentbox_editor_image_tag>` (default `0.1.0`) under the same one-tag-one-build rule as the session image, writes read-only machine settings (`extensions.allowed: {"*": false}`, no extension updates, telemetry off), creates the group `agentbox-editor` with the account Ansible connects as as its only member, the socket directory from a tmpfiles entry, and `~agent/.agentbox-editor`, and ends by checking the image: the pinned commit, uid 1000, no extensions, an extensions directory the user cannot write. **Action needed on an existing install:** none; to use the editor, set `agentbox_editor_accept_server_license: true` and run `sandbox --tags agentbox`.
+- The launcher starts the editor before a session on a terminal that is not a `-p` run (`agentbox_editor`, default `true`), or as `--editor` and `--no-editor` say: limits of its own (`agentbox_editor_memory`, `_cpus`, `_pids_limit`: `1g`, `1.0`, `256`), `--init`, `--cap-drop=ALL`, `no-new-privileges`, and only `/work`, its state, its socket directory, a new token per session and the machine settings; no repository tokens, API key or Claude Code state. The socket directory is recreated at each start, the token deleted and the editor stopped when the session ends, on a signal too; uploads the server refused are emptied from its state at start. `--list` shows `editor`. A failed editor start leaves the session running.
+- `examples/agentbox-remote --open-editor <project> [port]`: reads the session's editor token over SSH, prints the URL and holds the tunnel from `127.0.0.1:<port>` (default 8765, `AGENTBOX_EDITOR_PORT`) until `Ctrl-C`.
+- `examples/group_vars/agent_sandbox.yml`: the editor's variables, commented out.
+
+#### Changed
+
+- The launcher takes its options before the project in any order: `--tmux`, `--auto`, `--editor`, `--no-editor`. `--tmux` passes the others on to the launcher in its pane.
+- The image build of the `agentbox` role moved into `tasks/image.yml`, shared by the session image and the editor image; the session image's recipe hash is unchanged, so no rebuild.
+- README: new subsection "Sessions", "The editor", in the table of contents: installing it, opening it from the controller, when a session gets one, what it gets and keeps out, the display language, `.git/index.lock` with two writers, the group and `ControlMaster`, memory, the browser outside Squid, updating VS Code, and why not Remote-SSH. "What you get", "The launcher", "From the controller", "Tuning the VM", "Configure" and "What it protects, and what not" name it; "Open questions" gains item 3, editors under load, and the logins other than Pro become item 4.
+- `docs/design.md`: new section "The editor", with "Why not Remote-SSH", "The pieces", "What it keeps out", "What was tested" and "What is open", in the table of contents; "`agentbox`: image, managed settings and launcher", "The policy surface" and "The launcher contract" name it. `docs/release-tests.md`: what a release that changes the editor or the launcher checks; "Not covered yet" names the editor under load, the built-in extensions and the unexplained `--tmux` disconnect.
+
+#### Decisions
+
+- Decision 24: the editor is VS Code Server in a container of its own beside each session, opt-in by the licence. Not Remote-SSH, which trusts the VM; not inside the session's container, so the editor gets `/work` and no Claude Code state or tokens; on by default once installed; the server build fetched by the role on the user's VM and pinned by version, commit and SHA-256; no extensions to start with, each later one an image change with a review.
+
+#### Notes
+
+- Tested on `sandbox-vm` with VS Code 1.146.0 (`6904719`), first as a spike by hand, then the role and the launcher from the working tree; the results are in `docs/design.md`, "What was tested", and on #15. The first role run put `root` in the group instead of the account Ansible uses, because the inventory's `ansible_become: true` outranks a task's `become: false`; fixed with a task variable before the commit. The diagrams in `docs/images/` do not show the editor yet.
+
 ### 2026-11-15
 
 #### Changed

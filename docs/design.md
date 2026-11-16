@@ -52,6 +52,12 @@ named are the ones tested: Debian 13, Podman 5.4.2, Squid 6.13, kernel
   - [What a link costs](#what-a-link-costs)
   - [What was tested](#what-was-tested-1)
   - [What is open](#what-is-open)
+- [The editor](#the-editor)
+  - [Why not Remote-SSH](#why-not-remote-ssh)
+  - [The pieces](#the-pieces-1)
+  - [What it keeps out](#what-it-keeps-out)
+  - [What was tested](#what-was-tested-2)
+  - [What is open](#what-is-open-1)
 - [Core and extensions](#core-and-extensions)
 - [Extension points](#extension-points)
 - [Extensions and the security boundary](#extensions-and-the-security-boundary)
@@ -426,6 +432,14 @@ open; without one, both are rejected.
   MCP configuration of linked sessions in `/etc/agentbox/peer-mcp.json`,
   all root-owned. Without links the role removes all of it. Described under
   [Agent Intercom](#agent-intercom).
+- **The editor**, only with `agentbox_editor_accept_server_license` set:
+  the server build fetched on the VM and checked against its pinned
+  SHA-256, the image `localhost/agentbox-editor:<agentbox_editor_image_tag>`
+  with the same one-tag-one-build rule, read-only machine settings in
+  `/etc/agentbox/editor-machine-settings.json`, the group
+  `agentbox-editor` and the socket directory `/run/agentbox-editor`.
+  Without the licence the role removes all of it but the image. Described
+  under [The editor](#the-editor).
 - Ends by inspecting the image and running it once as `agent` (no mount,
   no secret): its `User` is `dev`, no `*_proxy` variable is in its `Env`,
   and under the launcher's user mapping `claude --version` reports the
@@ -485,7 +499,9 @@ agentbox_sandbox_allow_write:             # writable in Claude Code's sandbox
 
 Without `agentbox_peer_links`, nothing else is in play. With it,
 `agentbox_peer_budget` and `agentbox_peer_max_bytes` apply; see
-[Agent Intercom](#agent-intercom).
+[Agent Intercom](#agent-intercom). With
+`agentbox_editor_accept_server_license: true`, the editor's
+`agentbox_editor_*` variables do; see [The editor](#the-editor).
 
 Notes on the allowlist:
 
@@ -605,6 +621,15 @@ project's broker socket and `managed-mcp.json`, leaves out
 `agentbox_peer_unset_env`, and starts Claude Code with channels; see
 [Agent Intercom](#agent-intercom).
 Without links, none of that is in the launcher.
+
+**The editor.** With the editor installed, a session gets
+`agentbox-<project>-editor` beside it: by default when it runs on a
+terminal and is no `-p` run, or as `--editor` and `--no-editor` say. The
+options before the project go in any order, and `--tmux` passes them on
+to the launcher in the pane. The editor's `podman run` line is rendered
+into the launcher like the session's, with limits of its own; see
+[The editor](#the-editor). Without the licence accepted, none of it is in
+the launcher, `--no-editor` is accepted and `--editor` refused.
 
 **The API key** is optional. If `agent` has a Podman secret
 `anthropic_api_key` (`agentbox_api_key_secret`), the launcher passes it as
@@ -1122,6 +1147,170 @@ other.
   always are here. The managed settings do not set it, and only a Pro
   login was tested. With such a login, a linked session is expected to
   report channels as not available.
+
+## The editor
+
+VS Code for the browser, beside each session: Microsoft's VS Code Server,
+run as `bin/code-server` from its server build, in a container of its own
+on the same `/work`, reached from the controller through an SSH tunnel to a
+socket. Issue #15 has the design discussion; this section describes what
+was built from it.
+
+### Why not Remote-SSH
+
+The obvious way to use VS Code with the VM breaks the sandbox:
+
+- **Remote-SSH trusts the remote side.** Microsoft's Remote Development
+  docs say to connect only to trusted machines, since a compromised remote
+  can run code on the local one through the connection. Here the VM is the
+  untrusted side.
+- **The server and every workspace extension would run on the VM outside
+  any container,** as `ansible`, with sudo and open egress, or as `agent`,
+  with every project and every Claude login readable.
+- **It downloads its server at connect time,** past the allowlist.
+
+Remote Tunnels (`code tunnel`) route through Microsoft's relay with a
+GitHub or Microsoft login, which would need those hosts on the allowlist.
+VSCodium or openvscode-server with Open VSX would fit the same container
+design; Open VSX has had incidents of its own.
+
+### The pieces
+
+- **The licence.** Microsoft's
+  [VS Code Server licence](https://aka.ms/vscode-server-license) allows use
+  "with Microsoft Visual Studio Code to develop and test your
+  applications", one user per instance, and forbids hosting, sharing and
+  stand-alone offerings for others. So the role downloads the server on
+  the user's VM, never from a prebuilt image or a mirror; the editor is
+  reached through loopback and an SSH tunnel only; and the user accepts the
+  licence with `agentbox_editor_accept_server_license`, default `false`,
+  rather than the collection passing `--accept-server-license-terms` for
+  them. Until then nothing of the editor is installed. Not legal advice.
+- **The server build, pinned.** `agentbox_editor_vscode_version`,
+  `_commit` and `_sha256`, the last from Microsoft's update API, which
+  publishes one for each build. Ansible fetches it on the VM as the
+  account it connects as, which is not behind Squid, and `get_url` checks
+  the hash. The update hosts stay off the allowlist: image builds go
+  through Squid like everything `agent` does, so a build could not fetch
+  it anyway.
+- **The server itself, not `code serve-web`.** `serve-web` is a small proxy
+  that downloads a server build at first use and starts its
+  `bin/code-server`, which takes every option needed itself:
+  `--socket-path`, `--connection-token-file`, `--server-data-dir`,
+  `--extensions-dir`, `--default-folder`, `--disable-telemetry`. Run
+  directly, there is no CLI to ship, no cache to fill in advance and no
+  hourly update check.
+- **The image**, `localhost/agentbox-editor:<agentbox_editor_image_tag>`:
+  `debian:trixie-slim`, `ca-certificates` and `git`, the server unpacked
+  by `ADD` into `/opt/vscode-server-linux-x64-web`, owned by root, and an
+  empty `/opt/vscode-extensions` with an empty `extensions.json`, also
+  owned by root. User `dev`, uid 1000, as in the session image. Its label
+  hashes the rendered Containerfile and the server's SHA-256, under the
+  same rule as the session image: a changed recipe needs a new tag. The
+  role ends by running it once: the commit in `product.json`, uid 1000, no
+  extensions, and an extensions directory the user cannot write.
+- **The container.** The launcher starts it detached, before the session,
+  with `--init` (the server ignores `SIGTERM` as PID 1), the editor's own
+  limits, `--cap-drop=ALL`, `no-new-privileges`, the same user mapping, and
+  these mounts only: `/work`; `~/.agentbox-editor/<project>` as the
+  server's data directory, so settings and state survive `--rm`; the
+  machine settings, read-only, over the data directory's
+  `data/Machine/settings.json`; the project's socket directory; and the
+  token, read-only. No repository tokens, no API key, no Claude Code state,
+  no peer socket. When the session ends, so does the editor.
+- **The socket, not a port.** A published port does not work: `pasta`
+  forwards it as `agent`, and the nftables rule on `agent`'s uid rejects
+  the replies. The server listens on `/run/agentbox-editor/<project>/editor.sock`
+  instead, and the controller reaches it with `ssh -L` to that path.
+  `/run/agentbox-editor` is `agent:agentbox-editor`, mode `2770`, from a
+  tmpfiles entry; the account Ansible connects as is the group's only
+  member, and `agent` stays in no group, as the podman role insists. The
+  launcher recreates the project's directory at each start with umask
+  `007`: it inherits the group and setgid, and the stale socket a stopped
+  server leaves goes with the old directory. Not with a `chmod`: `agent`
+  is not in the group, so its `chmod` would clear setgid, and the socket
+  would fall back to group `agent`.
+- **The token.** A new one per session, 48 hex digits from `/dev/urandom`,
+  in a file under `/run/user/<uid>/agentbox/editor/` that only `agent`
+  reads, deleted when the session ends. `agentbox-remote --open-editor`
+  reads it over SSH and prints the URL. It also appears in
+  `podman logs` of the editor container, readable by `agent` only;
+  accepted.
+- **Machine settings,** from the role, owned by root:
+  `extensions.allowed: {"*": false}`, no automatic extension updates or
+  update checks, `update.mode: none`, telemetry off. The user's own
+  settings rank below them.
+
+### What it keeps out
+
+- **Extensions.** None but VS Code's built-in ones, and none can be added
+  during a session. The Marketplace's hosts are not on the allowlist, so
+  installing from the Extensions view fails at Squid. The extensions
+  directory belongs to root, so nothing installs into it, also not the
+  server's own `--install-extension` from a command in the container,
+  which ignores `extensions.allowed` and writes wherever it may. A VSIX
+  uploaded from the browser ("Install from VSIX", "Show Local") goes past
+  Squid; `extensions.allowed` in the machine settings refuses it. That
+  file is read-only in the container, since one that `agent` could write
+  would be no barrier. Adding an extension later is an image change:
+  review the publisher, the source and the content, and on every update
+  the diff to the pinned version, since hijacked publisher accounts are
+  the usual attack.
+- **Credentials.** The editor gets none. A malicious extension, if one got
+  in, would hit the same walls as Claude in the session, minus the
+  tokens.
+
+What it does not keep out:
+
+- **The browser.** It runs on the controller and talks to Microsoft
+  directly, not through Squid: `marketplace.visualstudio.com` and
+  `default.exp-tas.com` on load, a `*.vscode-cdn.net` subdomain per
+  webview, and `www.vscode-unpkg.net` for the translations of its
+  language. Those translations did not match the build in a German
+  browser, and the editor's text came out garbled; the server takes the
+  language from a cookie, then `Accept-Language`, and has no option for
+  it, and the role does not modify Microsoft's `product.json`. Choosing
+  English once in the browser fixes it.
+- **Exfiltration to allowlisted hosts.** An extension, had it got in,
+  could send `/work` anywhere Squid allows, as the session can.
+- **A kernel exploit,** as for every session: the VM is the boundary.
+
+### What was tested
+
+On `sandbox-vm` on 2026-11-16, VS Code 1.146.0 (`6904719`): a spike by
+hand, then the role and the launcher from the working tree.
+
+| Question | Result |
+|---|---|
+| The server build | fetched on the VM; matches the update API's `sha256hash` |
+| Start without network | `code-server` with the options above serves the workbench; Squid saw one denied request, `main.vscode-cdn.net`, and none for the Marketplace |
+| The token | none or a wrong one: 403; the right one: 302 with a cookie, then 200; `/work` opens by default |
+| The socket | `agent:agentbox-editor` 0770; the account Ansible uses connects, also through `ssh -L` from the controller |
+| A VSIX uploaded from the browser | refused: "This extension cannot be installed because it is not in the allowed list"; the file stays in `data/CachedExtensionVSIXs/`, which the launcher empties at start |
+| The server's `--install-extension` from inside | ignores `extensions.allowed`: installs into a writable directory, which the server does not load; into `/opt/vscode-extensions`, refused |
+| The machine settings from inside | "Read-only file system" |
+| What the container gets | `/work`, its state, its socket directory, token and machine settings read-only; no capabilities; 1 GiB, 1.0 CPU, 256 processes |
+| Size | 350 MB and 61 processes with the workbench open; the image 947 MB |
+| `agentbox` on a terminal, `--no-editor`, `-p`, `--editor` without one | an editor, none, none, an editor |
+| The session ends; `SIGTERM` to the launcher | the editor stops, its socket directory and token are gone |
+| `--tmux` | the editor outlives a dropped connection and goes with `tmux kill-session` |
+| The role, second run; without the licence | `changed=0`; without it, `changed=0` on a VM that never had the editor |
+
+The first role run put `root` in the group instead of the account Ansible
+uses: the inventory's `ansible_become: true` outranks a task's
+`become: false`. The task now sets `ansible_become: false` as a task
+variable.
+
+### What is open
+
+- **Two projects with editors under load:** language servers and builds
+  beside two sessions were not measured.
+- **Built-in extensions with `extensions.allowed: {"*": false}`:** the
+  workbench loaded and the server logged no refusal, but whether every
+  built-in extension still activates was not checked one by one.
+- **The first disconnect of a `--tmux` session** in the tests left nothing
+  behind; two repeats, with and without the editor, kept the session.
+  Not explained.
 
 ---
 
@@ -1858,3 +2047,20 @@ decision that is revised keeps its number and says so.
     the one place the collection writes outside the VM and the working
     directory. Going back to an older tag stays possible, so `sandbox`
     warns about it and goes on.
+24. **The editor is VS Code Server in a container of its own beside each
+    session, opt-in by the licence** ([The editor](#the-editor)). Not
+    Remote-SSH, which trusts the VM and would run the server outside every
+    container. A container of its own rather than inside the session's,
+    so that the editor and anything in it get `/work` and nothing of
+    Claude Code's state, and no repository tokens: pushes go through the
+    session. On by default for an interactive session once installed,
+    because an editor that has to be asked for each time goes unused; the
+    licence, which is Microsoft's and binds the user, is what has to be
+    asked for, so the role installs nothing until
+    `agentbox_editor_accept_server_license` says so. The server build is
+    fetched by the role on the user's VM, as the licence wants, and pinned
+    by version, commit and SHA-256. No extensions to start with: each one
+    is an image change with a review, because the extensions directory is
+    read-only and the machine settings refuse uploads. Core rather than an
+    extension for the reason of Decisions 18 and 19: the extension points
+    are not built. A candidate to move into an extension once they exist.

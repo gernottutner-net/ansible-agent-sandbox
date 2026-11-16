@@ -115,6 +115,21 @@ and a plain start beside it, are refused, both ways round; a project name
 with a `.` gets its own tmux session; an `--auto -p` task with quotes,
 spaces and `$HOME` in it reaches Claude unchanged.
 
+A release that changes the editor, or the launcher, also checks
+[the editor](../README.md#the-editor), with
+`agentbox_editor_accept_server_license: true`: the first `sandbox` run
+builds the editor image and its own check passes, the second is
+`changed=0`; `agentbox <project>` on a terminal prints the editor's line,
+`--no-editor` and a `-p` run start none; `agentbox-remote --open-editor`
+prints a URL that opens `/work` in a browser, and the URL without its
+token gets 403; a VSIX uploaded with "Install from VSIX" is refused as not
+in the allowed list; the session's end, `tmux kill-session` and `SIGTERM`
+to the launcher each stop the editor and remove its socket directory and
+token; `--tmux` keeps the editor across a dropped connection, tried more
+than once; two projects with editors at once, each with a project open,
+and their memory recorded. Then `sandbox` with the licence set back to
+`false` removes the editor's files and group, `changed=0` after.
+
 ### Afterwards
 
 Delete the snapshot state file by hand, as `docs/virtualbox.md` says, and
@@ -659,6 +674,11 @@ is off.
   release test, tested only by hand
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
 - A linked session under `--tmux`.
+- The editor under load: two projects with language servers and builds;
+  whether every built-in extension activates under
+  `extensions.allowed: {"*": false}`; the one `--tmux` disconnect that
+  left nothing behind in the editor's tests
+  ([docs/design.md, "What is open"](design.md#what-is-open-1)).
 - `update_check` on a VM that a release with a role change left behind,
   and its line on the variables `examples/` sets, on a real inventory:
   the [release test of v0.6.0](#the-release-test-of-v060) had neither.

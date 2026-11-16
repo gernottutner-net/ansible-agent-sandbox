@@ -69,6 +69,15 @@ agentbox_sandbox_allow_write:
 #   - { from: beta, to: alpha }
 # agentbox_peer_budget: 40
 
+# ---- the editor ---------------------------------------------------------------
+# VS Code in your browser beside each session: read the README, "The editor".
+# Setting this accepts Microsoft's VS Code Server licence,
+# https://aka.ms/vscode-server-license (one user, your own use); until then
+# nothing of the editor is installed.
+# agentbox_editor_accept_server_license: true
+# agentbox_editor: true          # start one with every session on a terminal
+# agentbox_editor_memory: 1g
+
 # ---- update_check -------------------------------------------------------------
 # Where update_check -e install_scripts=true puts the controller scripts from
 # examples/, such as agentbox-remote. See the README, "What an update needs".

@@ -1,0 +1,211 @@
+---
+# The editor: VS Code Server for the browser, in a container of its own beside
+# each session, or nothing at all until the licence is accepted. See
+# docs/design.md, "The editor". The launcher starts and stops it.
+
+- name: Record the editor's image and paths
+  ansible.builtin.set_fact:
+    _agentbox_editor_on: "{{ agentbox_editor_accept_server_license | bool }}"
+    _agentbox_editor_image: "localhost/agentbox-editor:{{ agentbox_editor_image_tag }}"
+    # Where ADD unpacks the server build, and where extensions load from.
+    _agentbox_editor_server: /opt/vscode-server-linux-x64-web
+    _agentbox_editor_extensions: /opt/vscode-extensions
+    # The server's data directory in the container: the project's state
+    # directory from ~/<agentbox_editor_state_dir_name>/<project>.
+    _agentbox_editor_data: "/home/{{ agentbox_image_user }}/.vscode-server"
+
+- name: Record the editor's build hash
+  ansible.builtin.set_fact:
+    # The recipe and the pinned server build: everything the image is made of.
+    _agentbox_editor_build_sha256: >-
+      {{ (lookup('ansible.builtin.template', 'Containerfile-editor.j2')
+          ~ agentbox_editor_vscode_sha256) | hash('sha256') }}
+  when: _agentbox_editor_on
+
+- name: Remove the editor when the licence is not accepted
+  when: not _agentbox_editor_on
+  block:
+    # The image stays, like every old tag: podman image rm removes it.
+    - name: Remove the editor's files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ agentbox_editor_build_dir }}"
+        - "{{ agentbox_editor_machine_settings_path }}"
+        - /etc/tmpfiles.d/agentbox-editor.conf
+        - "{{ agentbox_editor_run_dir }}"
+
+    - name: Remove the editor's group
+      ansible.builtin.group:
+        name: "{{ agentbox_editor_group }}"
+        state: absent
+
+- name: Install the editor when the licence is accepted
+  when: _agentbox_editor_on
+  block:
+    - name: Check the pinned server build
+      ansible.builtin.assert:
+        that:
+          - agentbox_editor_vscode_commit is match('^[0-9a-f]{40}$')
+          - agentbox_editor_vscode_sha256 is match('^[0-9a-f]{64}$')
+        fail_msg: >-
+          agentbox_editor_vscode_commit must be a 40-digit and
+          agentbox_editor_vscode_sha256 a 64-digit lowercase hex string.
+        quiet: true
+
+    # ---- access: the group and the socket directory ------------------------------
+
+    # Not the play's become user: the account that connects, which is the one
+    # ssh -L runs as. A task var, because the inventory's ansible_become
+    # (examples/group_vars/all.yml) outranks the become keyword.
+    - name: Look up the account Ansible connects as
+      ansible.builtin.command: id -un
+      vars:
+        ansible_become: false
+      register: _agentbox_connect_user
+      changed_when: false
+      check_mode: false
+
+    - name: Create the editor's group
+      ansible.builtin.group:
+        name: "{{ agentbox_editor_group }}"
+        system: true
+        state: present
+      register: _agentbox_editor_group_result
+
+    # Takes effect on its next login, so a multiplexed SSH connection that is
+    # already open does not have it yet. Skipped in check mode while the group
+    # does not exist yet, as is the socket directory below.
+    - name: Add the account Ansible connects as to the editor's group
+      ansible.builtin.user:
+        name: "{{ _agentbox_connect_user.stdout }}"
+        groups: "{{ agentbox_editor_group }}"
+        append: true
+      when: not (ansible_check_mode and _agentbox_editor_group_result is changed)
+
+    - name: Write the socket directory's tmpfiles entry, for every boot
+      ansible.builtin.template:
+        src: agentbox-editor.tmpfiles.j2
+        dest: /etc/tmpfiles.d/agentbox-editor.conf
+        owner: root
+        group: root
+        mode: "0644"
+
+    # The same as the tmpfiles entry, for this boot. Skipped in check mode
+    # while the group does not exist yet.
+    - name: Create the socket directory
+      ansible.builtin.file:
+        path: "{{ agentbox_editor_run_dir }}"
+        state: directory
+        owner: "{{ sandbox_user }}"
+        group: "{{ agentbox_editor_group }}"
+        mode: "02770"
+      when: not (ansible_check_mode and _agentbox_editor_group_result is changed)
+
+    # ---- the image ---------------------------------------------------------------
+
+    - name: Ensure the editor's build directory exists
+      ansible.builtin.file:
+        path: "{{ agentbox_editor_build_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      register: _agentbox_editor_build_dir_result
+
+    # On the VM, by the account Ansible uses, which is not behind Squid: the
+    # update hosts stay off the allowlist. Checked against the pinned sha256;
+    # a file that matches is not fetched again. Skipped in check mode while
+    # the directory does not exist yet.
+    - name: Download the pinned VS Code Server build
+      ansible.builtin.get_url:
+        url: >-
+          https://update.code.visualstudio.com/commit:{{ agentbox_editor_vscode_commit }}/server-linux-x64-web/stable
+        dest: "{{ agentbox_editor_build_dir }}/vscode-server-linux-x64-web.tar.gz"
+        checksum: "sha256:{{ agentbox_editor_vscode_sha256 }}"
+        owner: root
+        group: root
+        mode: "0644"
+      when: not (ansible_check_mode and _agentbox_editor_build_dir_result is changed)
+
+    - name: Write the editor's Containerfile
+      ansible.builtin.template:
+        src: Containerfile-editor.j2
+        dest: "{{ agentbox_editor_build_dir }}/Containerfile"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Build the editor image, unless its tag exists
+      ansible.builtin.import_tasks: image.yml
+      vars:
+        _image: "{{ _agentbox_editor_image }}"
+        _image_sha: "{{ _agentbox_editor_build_sha256 }}"
+        _image_file: "{{ agentbox_editor_build_dir }}/Containerfile"
+        _image_tag_var: agentbox_editor_image_tag
+
+    # Not in the image: mounted read-only by the launcher, so a change needs no
+    # rebuild.
+    - name: Write the editor's machine settings
+      ansible.builtin.template:
+        src: editor-machine-settings.json.j2
+        dest: "{{ agentbox_editor_machine_settings_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        validate: python3 -m json.tool %s
+
+    - name: Create the editor's state directory
+      ansible.builtin.file:
+        path: "{{ _agentbox_editor_state_dir }}"
+        state: directory
+        owner: "{{ sandbox_user }}"
+        group: "{{ sandbox_user }}"
+        mode: "0700"
+
+    # ---- verification ------------------------------------------------------------
+
+    - name: Ask the editor image for its server commit, uid and extensions
+      ansible.builtin.command:
+        argv:
+          - podman
+          - run
+          - --rm
+          - --pull=never
+          - --cap-drop=ALL
+          - --security-opt=no-new-privileges
+          - "--userns=keep-id:uid={{ agentbox_image_uid }},gid={{ agentbox_image_uid }}"
+          - "{{ _agentbox_editor_image }}"
+          - sh
+          - -c
+          - >-
+            grep -o '"commit": *"[0-9a-f]*"' {{ _agentbox_editor_server }}/product.json | grep -o '[0-9a-f]\{40\}';
+            id -u;
+            cat {{ _agentbox_editor_extensions }}/extensions.json; echo;
+            touch {{ _agentbox_editor_extensions }}/probe 2>/dev/null && echo writable || echo read-only
+      become: true
+      become_user: "{{ sandbox_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ _sandbox_uid }}"
+      register: _agentbox_editor_probe
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Assert the editor image has the pinned server, the uid and no extensions
+      ansible.builtin.assert:
+        that:
+          - _agentbox_editor_probe.stdout_lines | length == 4
+          - _agentbox_editor_probe.stdout_lines[0] == agentbox_editor_vscode_commit
+          - _agentbox_editor_probe.stdout_lines[1] == agentbox_image_uid | string
+          - _agentbox_editor_probe.stdout_lines[2] == '[]'
+          - _agentbox_editor_probe.stdout_lines[3] == 'read-only'
+        fail_msg: >-
+          Expected commit {{ agentbox_editor_vscode_commit }}, uid
+          {{ agentbox_image_uid }}, no extensions and a read-only extensions
+          directory, got: {{ _agentbox_editor_probe.stdout_lines }}
+        success_msg: >-
+          VS Code Server {{ agentbox_editor_vscode_version }}
+          ({{ _agentbox_editor_probe.stdout_lines[0][:7] }}), uid
+          {{ _agentbox_editor_probe.stdout_lines[1] }}, no extensions, read-only
+      when: _agentbox_editor_probe.stdout is defined

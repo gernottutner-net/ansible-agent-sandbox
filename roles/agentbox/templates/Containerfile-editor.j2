@@ -1,0 +1,35 @@
+# {{ ansible_managed }}
+# The editor image: VS Code Server {{ agentbox_editor_vscode_version }} for the
+# browser, and nothing else. Built rootless as {{ sandbox_user }}, like the
+# session image; the server build was fetched on this VM by the role and
+# checked against its pinned sha256, so the build itself downloads only apt
+# packages, through Squid.
+
+FROM {{ agentbox_base_image }}
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends {{ agentbox_editor_apt_packages | join(' ') }} \
+ && rm -rf /var/lib/apt/lists/*
+
+# ADD unpacks a local tarball, into {{ _agentbox_editor_server }}: one layer,
+# root-owned, so the session user cannot change the server.
+ADD vscode-server-linux-x64-web.tar.gz /opt/
+
+# Extensions load from here only, root-owned and read-only to the server, so
+# nothing installs at run time: not from the browser, not from a command in
+# the container. Empty for now; the manifest must exist, or the server logs an
+# error on every connect.
+RUN install -d -m 0755 {{ _agentbox_editor_extensions }} \
+ && printf '[]' > {{ _agentbox_editor_extensions }}/extensions.json \
+ && chmod 0644 {{ _agentbox_editor_extensions }}/extensions.json
+
+# uid and gid pinned, the same as the session image: both containers write
+# /work as the sandbox user.
+RUN groupadd --gid {{ agentbox_image_uid }} {{ agentbox_image_user }} \
+ && useradd --uid {{ agentbox_image_uid }} --gid {{ agentbox_image_uid }} --create-home --shell /bin/bash {{ agentbox_image_user }} \
+ && install -d -o {{ agentbox_image_user }} -g {{ agentbox_image_user }} -m 0755 /work
+
+USER {{ agentbox_image_user }}
+WORKDIR /work

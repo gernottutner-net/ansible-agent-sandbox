@@ -39,6 +39,7 @@ on: a Debian 13 guest under VirtualBox 7.0, on an Ubuntu 22.04 host.
   - [The launcher](#the-launcher)
   - [Sessions that outlive the connection](#sessions-that-outlive-the-connection)
   - [From the controller](#from-the-controller)
+  - [The editor](#the-editor)
   - [Autonomous mode](#autonomous-mode)
   - [Logging in](#logging-in)
   - [Getting a project in](#getting-a-project-in)
@@ -64,7 +65,7 @@ guest over SSH, in this order, from the playbook `sandbox`.
 | `virtualbox_vm` | The VM from Debian's checksum-verified cloud image: a NAT and a host-only NIC with pinned MACs, a cloud-init seed with an `ansible` account and your key, headless start; snapshots with one rolling slot plus a baseline; teardown. Details in [docs/virtualbox.md](docs/virtualbox.md). |
 | `podman` | Podman with crun and pasta; a sudo-less user `agent` with a pinned subuid range, lingering, and delegated cgroup v2 limits. Asserts no sudo rights and no overlapping ranges. |
 | `egress_proxy` | Squid with a default-deny allowlist, and an nftables rule on `agent`'s uid that makes Squid the only way out. Probes an allowed host, a denied one and a bypass on every run. |
-| `agentbox` | The image (Debian, Node, a pinned Claude Code), Claude Code's managed settings, and the launcher `/usr/local/bin/agentbox`, the only supported way to start a session. With the playbook `git_token`, it also hands a project its [repository tokens](#repository-tokens). With links in the inventory, it also sets up the [Agent Intercom](#agent-intercom), so sessions can talk to each other. |
+| `agentbox` | The image (Debian, Node, a pinned Claude Code), Claude Code's managed settings, and the launcher `/usr/local/bin/agentbox`, the only supported way to start a session. With the playbook `git_token`, it also hands a project its [repository tokens](#repository-tokens). With links in the inventory, it also sets up the [Agent Intercom](#agent-intercom), so sessions can talk to each other. Once you accept Microsoft's licence, it adds [the editor](#the-editor): VS Code in your browser, beside each session. |
 
 Every role checks what it set up before it finishes, so a run that passes
 has been observed denying, not only configured to. The layers they build,
@@ -244,7 +245,7 @@ session that is running keeps what it started with:
 | You changed | Run | Then |
 |---|---|---|
 | `agentbox_git_tokens`, or a token in your credential helper | `git_token -e project=<project>` | start the project's session again |
-| anything else in `group_vars/agent_sandbox.yml`: allowlist, limits, image, `agentbox_*`, `agentbox_peer_links` | `sandbox` | start the sessions again |
+| anything else in `group_vars/agent_sandbox.yml`: allowlist, limits, image, `agentbox_*`, `agentbox_peer_links`, `agentbox_editor_*` | `sandbox` | start the sessions again |
 | `vm_memory_mb`, `vm_cpus` | `provision`, with the VM off | see [Tuning the VM](#tuning-the-vm) |
 
 A link or a token that is in the inventory but missing from the VM shows as
@@ -389,6 +390,7 @@ each session's, set in `group_vars/agent_sandbox.yml`.
 | `sandbox_memory` | `2g`, no swap | `group_vars` | next session, after `sandbox --tags agentbox` |
 | `sandbox_cpus` | `1.5` | `group_vars` | next session, after `sandbox --tags agentbox` |
 | `sandbox_pids_limit` | `256` | `group_vars` | next session, after `sandbox --tags agentbox` |
+| `agentbox_editor_memory`, `_cpus`, `_pids_limit` | `1g`, `1.0`, `256` | `group_vars` | next session's [editor](#the-editor), after `sandbox --tags agentbox` |
 
 **The VM's memory and CPUs.** VirtualBox changes them only while the VM is
 off, and `provision` never shuts a guest down for it. Change the value,
@@ -417,7 +419,8 @@ A running session keeps the limits it started with.
 
 **How big.** One session needs `sandbox_memory`, plus Squid and the guest
 itself: about 4 GB for one session with the defaults. Each further session
-at the same time needs another `sandbox_memory`. Details in
+at the same time needs another `sandbox_memory`, and with an
+[editor](#the-editor) another `agentbox_editor_memory`. Details in
 [docs/virtualbox.md](docs/virtualbox.md#adding-a-vm).
 
 **What it costs the host.** A guest page, once used, stays in the host's
@@ -445,6 +448,11 @@ As `agent` on the VM (`ssh` in as `ansible`, then `sudo -iu agent`):
 agentbox <project>              # Claude Code in /work
 agentbox <project> bash         # a shell instead, e.g. to clone first
 ```
+
+The options go before the project, in any order: `--auto`
+([Autonomous mode](#autonomous-mode)), `--tmux`
+([Sessions that outlive the connection](#sessions-that-outlive-the-connection)),
+and `--editor` or `--no-editor` ([The editor](#the-editor)).
 
 - `<project>` is a plain name: letters, digits, `.`, `_`, `-`, starting
   with a letter or digit. The launcher creates `~/projects/<project>`
@@ -540,6 +548,7 @@ agentbox-remote <project>                   # agentbox <project>, on the VM
 agentbox-remote --tmux <project>            # start or reattach
 agentbox-remote --tmux --auto <project> -p '<task>'
 agentbox-remote --list
+agentbox-remote --open-editor <project>     # the session's editor in your browser
 ```
 
 It takes the same arguments as the launcher and passes them on unchanged,
@@ -547,12 +556,97 @@ quotes and `$` included. `AGENTBOX_HOST` names the VM as `ssh` reaches it,
 as the account Ansible uses: a `Host` from `~/.ssh/config`, or
 `ansible@192.168.56.10`; the default is `sandbox-vm`. `AGENTBOX_USER` is
 the sandbox account, `agent` unless `sandbox_user` says otherwise.
+`--open-editor` is the one option that is not the launcher's: see
+[The editor](#the-editor).
 
 It does not use `sudo -i`, which hands the command to the sandbox account's
 login shell: that shell would parse the arguments again and expand any
 `$NAME` in a `-p` task. Typed by hand on the VM, `sudo -iu agent agentbox …`
 does expand it; quote such a task for that shell too, or start the session
 from `agent`'s own shell.
+
+### The editor
+
+VS Code in your browser, for the project of a running session: Microsoft's
+VS Code Server, in a container of its own beside the session, on the same
+`/work`. Off until you accept
+[Microsoft's licence for it](https://aka.ms/vscode-server-license), which
+allows one user and your own use, no sharing:
+
+```yaml
+agentbox_editor_accept_server_license: true
+```
+
+Then run `sandbox --tags agentbox`. It downloads the server build on the
+VM, checks it against the pinned SHA-256, and builds
+`localhost/agentbox-editor:<agentbox_editor_image_tag>` (about 950 MB). From
+then on a session started on a terminal gets an editor and says so:
+
+```text
+agentbox: editor in agentbox-<project>-editor; from the controller: agentbox-remote --open-editor <project>
+```
+
+On the controller, with [`agentbox-remote`](#from-the-controller):
+
+```bash
+agentbox-remote --open-editor <project>          # on 127.0.0.1:8765
+agentbox-remote --open-editor <project> 8766     # another port, for a second project
+```
+
+It prints the URL, with the session's token in it, and holds an SSH tunnel
+to the editor until `Ctrl-C`. Open the URL in your browser; the project is
+already open. `Ctrl-C` ends the tunnel, not the editor.
+
+- **When there is one.** For `agentbox <project>` on a terminal, with or
+  without `--auto` or `--tmux`; not for a `-p` run, nor without a
+  terminal. `--no-editor` leaves it out for one session, `--editor` starts
+  one anyway; with `agentbox_editor: false`, only `--editor` does. It
+  stops when the session ends, and `--list` shows it as `editor`.
+- **What it gets.** `/work`, and its own settings and state in
+  `~/.agentbox-editor/<project>`. No repository tokens, no API key, no
+  Claude login: push from the session. Limits of its own,
+  `agentbox_editor_memory` (`1g`), `agentbox_editor_cpus` (`1.0`) and
+  `agentbox_editor_pids_limit` (`256`), and the same Squid as the session.
+- **No extensions but VS Code's built-in ones, and none can be added.** The
+  Marketplace is not on the allowlist; the extensions directory belongs to
+  root in the image; and a VSIX uploaded from the browser, which would go
+  past Squid, is refused: "not in the allowed list", by machine settings
+  the editor can read but not change.
+- **The display language.** With a browser in another language than
+  English, the editor's text can come out garbled: the browser fetches
+  translations that do not match the build. Choose English once, with
+  *Configure Display Language* in the command palette; the browser keeps
+  it.
+- **Two writers on `/work`.** Files are fine, but git in the editor and in
+  the session at the same moment can collide on `.git/index.lock`. Commit
+  in one place at a time.
+- **The token** is new for each session, so a URL from an earlier session
+  no longer works: run `--open-editor` again.
+- **"no editor in `<project>`"** means no session runs there, or it started
+  without an editor. A permission error from the tunnel right after the
+  first `sandbox` run with the editor means an SSH connection older than
+  the run: the account Ansible uses joined the group `agentbox-editor`
+  then, and a connection kept open by `ControlMaster` does not have it yet.
+  `ssh -O exit sandbox-vm` closes it.
+- **Memory.** About 350 MB with a project open. Two projects with editors
+  and language servers want the default 6 GB VM.
+- **The browser is outside the sandbox.** It loads the editor from the VM,
+  but also talks to Microsoft directly, not through Squid: the
+  Marketplace, `*.vscode-cdn.net` for webviews, `www.vscode-unpkg.net` for
+  translations. Only the browser does: the editor's server on the VM gets
+  no further than Squid.
+
+**Updating VS Code:** set `agentbox_editor_vscode_version`,
+`agentbox_editor_vscode_commit` and `agentbox_editor_vscode_sha256`
+together, from
+`https://update.code.visualstudio.com/api/versions/<version>/server-linux-x64-web/stable`
+(`version` there is the commit, `sha256hash` the checksum), and a new
+`agentbox_editor_image_tag`; then `sandbox --tags agentbox`.
+
+Why not VS Code's Remote-SSH into the VM: it trusts the remote side, which
+here is the untrusted one, and its server would run outside every
+container. That, what was tested and the rest are in
+[docs/design.md, "The editor"](docs/design.md#the-editor).
 
 ### Autonomous mode
 
@@ -881,6 +975,9 @@ from the container lands in a sudo-less account. It does not:
 - **keep two linked projects apart.** That is what
   [a link](#agent-intercom) gives up: a misled session
   can steer the one it is linked to.
+- **keep the browser behind Squid.** The [editor](#the-editor)'s server
+  runs in the sandbox; the browser on the controller that shows it does
+  not, and talks to Microsoft's hosts directly.
 - **prevent leaks to allowed hosts.** The allowlist says which
   organisations the agent may talk to, not what it may say: a gist on
   github.com is as reachable as the rest of github.com.
@@ -900,7 +997,10 @@ Not yet tested, and not claimed:
 2. **`ANTHROPIC_API_KEY` withheld by name.** The environment was tested with a
    variable of another name; whether Claude Code keeps its API key variable
    from its commands is not known. Assume it does not.
-3. **Linked sessions with logins other than Pro.** Team, Enterprise and
+3. **Editors under load.** One editor with a project open used about
+   350 MB; two projects with editors, language servers and builds were not
+   measured.
+4. **Linked sessions with logins other than Pro.** Team, Enterprise and
    API-key logins probably need `channelsEnabled: true` in the managed
    settings for channels, which the collection does not set. Only a Pro
    login was tested.

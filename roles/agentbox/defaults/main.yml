@@ -126,3 +126,49 @@ agentbox_managed_mcp_target: /etc/claude-code/managed-mcp.json
 
 agentbox_build_dir: /etc/agentbox
 agentbox_launcher_path: /usr/local/bin/agentbox
+
+# ---- the editor ----------------------------------------------------------------
+# VS Code for the browser beside each session, in a container of its own on the
+# same /work: see docs/design.md, "The editor". Microsoft's VS Code Server
+# licence (https://aka.ms/vscode-server-license) applies: one user, your own
+# use, no sharing. Setting this to true accepts it; until then nothing of the
+# editor is downloaded, built or installed, and a run with false removes it
+# again (the image stays in storage, like every old tag).
+agentbox_editor_accept_server_license: false
+
+# With the editor installed: whether a session starts one unless told
+# otherwise (agentbox --no-editor, or --editor when this is false).
+agentbox_editor: true
+
+# The server build, pinned: version, commit and the sha256 that Microsoft's
+# update API publishes for server-linux-x64-web at that commit
+# (https://update.code.visualstudio.com/api/versions/<version>/server-linux-x64-web/stable).
+# Updating VS Code: bump all three and agentbox_editor_image_tag.
+agentbox_editor_vscode_version: "1.146.0"
+agentbox_editor_vscode_commit: 69047191fc427f2f92828279aae1d90d8eeda7ab
+agentbox_editor_vscode_sha256: 7c4536e63c54c90fae02b74dfa98342aa2d5f02b342505c5b3d37033ab8d4f2f
+
+# Its own image and tag, with the same rule as sandbox_image_tag: a changed
+# recipe needs a new tag.
+agentbox_editor_image_tag: "0.1.0"
+
+agentbox_editor_apt_packages:
+  - ca-certificates
+  - git
+
+# Run limits of the editor container, apart from the session's.
+agentbox_editor_memory: 1g
+agentbox_editor_cpus: 1.0
+agentbox_editor_pids_limit: 256
+
+# The account Ansible connects as joins this group, and nothing else does: it
+# lets sshd reach the editor's socket for ssh -L. The sandbox user stays in no
+# group (roles/podman).
+agentbox_editor_group: agentbox-editor
+
+agentbox_editor_build_dir: /etc/agentbox-editor
+agentbox_editor_machine_settings_path: /etc/agentbox/editor-machine-settings.json
+agentbox_editor_run_dir: /run/agentbox-editor
+# Per project, ~<sandbox_user>/<this>/<project>: the editor's settings and
+# state, apart from Claude Code's under ~/.agentbox.
+agentbox_editor_state_dir_name: .agentbox-editor

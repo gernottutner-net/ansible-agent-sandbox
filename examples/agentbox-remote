@@ -1,27 +1,37 @@
 #!/bin/sh
 # agentbox-remote: start or attach a sandbox session from the controller.
 #
-#   agentbox-remote [--tmux] <project> [command ...]
-#   agentbox-remote [--tmux] --auto <project> [claude-args ...]
+#   agentbox-remote [--tmux] [--editor|--no-editor] [--auto] <project> [args ...]
 #   agentbox-remote --list
+#   agentbox-remote --open-editor <project> [port]
 #
 # Runs the launcher on the VM over SSH, as the sandbox account, with the
 # arguments passed through unchanged. Copy or link it into a directory on
 # your PATH, e.g. ~/bin. See README.md, "From the controller".
 #
+# --open-editor opens the editor of the project's running session instead,
+# where --editor starts a session with one: a tunnel from 127.0.0.1:<port> on this machine to its socket on the
+# VM, and the URL with the session's token, until Ctrl-C. See README.md,
+# "The editor".
+#
 #   AGENTBOX_HOST  the VM as ssh reaches it, as the account Ansible uses:
 #                  a Host from ~/.ssh/config or user@address
 #                  (default: sandbox-vm)
 #   AGENTBOX_USER  the sandbox account, sandbox_user (default: agent)
+#   AGENTBOX_EDITOR_PORT     the local port for --open-editor (default: 8765)
+#   AGENTBOX_EDITOR_RUN_DIR  agentbox_editor_run_dir (default: /run/agentbox-editor)
 set -eu
 
 host=${AGENTBOX_HOST:-sandbox-vm}
 user=${AGENTBOX_USER:-agent}
+usage="usage: agentbox-remote [--tmux] [--editor|--no-editor] [--auto] <project> [args ...] | agentbox-remote --list | agentbox-remote --open-editor <project> [port]"
 
-[ $# -ge 1 ] || {
-    echo "usage: agentbox-remote [--tmux] [--auto] <project> [args ...] | agentbox-remote --list" >&2
+die() {
+    echo "agentbox-remote: $*" >&2
     exit 1
 }
+
+[ $# -ge 1 ] || die "$usage"
 
 # One argument, quoted for the remote shell: '...' with each ' as '\''.
 sq() {
@@ -38,6 +48,39 @@ cmd="sudo -u $(sq "$user") -H -- sh -c 'cd && exec agentbox \"\$@\"' agentbox"
 for arg; do
     cmd="$cmd $(sq "$arg")"
 done
+
+# The editor of a running session.
+if [ "$1" = --open-editor ]; then
+    [ $# -ge 2 ] && [ $# -le 3 ] || die "$usage"
+    project=$2
+    port=${3:-${AGENTBOX_EDITOR_PORT:-8765}}
+    case $port in
+        '' | *[!0-9]*) die "not a port: $port" ;;
+    esac
+    case $project in
+        [A-Za-z0-9]*) ;;
+        *) die "not a project name: $project" ;;
+    esac
+    case $project in
+        *[!A-Za-z0-9._-]*) die "not a project name: $project" ;;
+    esac
+    # The token the launcher wrote for this session, readable by the sandbox
+    # account only. A few tries: the session may have just started.
+    read_token="sudo -u $(sq "$user") -H -- sh -c 'cat \"/run/user/\$(id -u)/agentbox/editor/\$1.token\"' agentbox $(sq "$project")"
+    token=
+    for _ in 1 2 3 4 5; do
+        token=$(ssh "$host" "$read_token" 2>/dev/null) && [ -n "$token" ] && break
+        token=
+        sleep 1
+    done
+    [ -n "$token" ] || die "no editor in $project: is a session running there, started with an editor?"
+    # sshd connects to the socket as the account ssh logs in as, which the
+    # role put in the editor's group. ExitOnForwardFailure: a port in use
+    # ends here, not with a tunnel that goes nowhere.
+    echo "agentbox-remote: editor of $project at http://127.0.0.1:$port/?tkn=$token  (Ctrl-C ends the tunnel)" >&2
+    exec ssh -N -o ExitOnForwardFailure=yes \
+        -L "127.0.0.1:$port:${AGENTBOX_EDITOR_RUN_DIR:-/run/agentbox-editor}/$project/editor.sock" "$host"
+fi
 
 if [ "$1" = --list ]; then
     exec ssh "$host" "$cmd"

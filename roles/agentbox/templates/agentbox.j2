@@ -2,8 +2,8 @@
 # {{ ansible_managed }}
 # The only supported way to start a sandbox session:
 #
-#   agentbox [--tmux] <project> [command ...]
-#   agentbox [--tmux] --auto <project> [claude-args ...]
+#   agentbox [--tmux] [--editor|--no-editor] <project> [command ...]
+#   agentbox [--tmux] [--editor|--no-editor] --auto <project> [claude-args ...]
 #   agentbox --list
 #
 # Runs {{ _agentbox_image }} with <project> from {{ _agentbox_projects_dir }}
@@ -21,6 +21,15 @@
 # With --tmux, the session runs inside the tmux session agentbox-<project>,
 # which outlives the connection; the same command attaches to it later.
 # --list shows the projects and which of them run.
+{% if _agentbox_editor_on %}
+# The editor: VS Code Server for the browser in agentbox-<project>-editor, a
+# container beside the session on the same /work, with limits of its own
+# and none of the session's credentials: no repository tokens, no API key,
+# no Claude Code state. Started {{ 'by default' if agentbox_editor | bool else 'with --editor' }} for a session on
+# a terminal that is not a -p run; stopped when the session ends. It listens
+# on a socket in {{ agentbox_editor_run_dir }}/<project>, which the
+# controller reaches through ssh -L: agentbox-remote --open-editor <project>.
+{% endif %}
 {% if agentbox_peer_links %}
 # A plain interactive session in a project with a link is linked: it gets its
 # socket to the peer broker, and Claude Code's channels, which need telemetry
@@ -38,7 +47,7 @@ die() {
 [ "$(id -un)" = {{ sandbox_user | quote }} ] \
     || die "run as {{ sandbox_user }}, e.g. sudo -iu {{ sandbox_user }} agentbox <project>"
 
-usage="usage: agentbox [--tmux] <project> [command ...] | agentbox [--tmux] --auto <project> [claude-args ...] | agentbox --list"
+usage="usage: agentbox [--tmux] [--editor|--no-editor] [--auto] <project> [args ...] | agentbox --list"
 
 # One directory by name: no slashes, no dot-names, nothing that could reach
 # outside the projects directory.
@@ -73,6 +82,9 @@ if [ "${1:-}" = --list ]; then
         name=${name##*/}
         state=
         if podman container exists "agentbox-$name"; then state=running; fi
+{% if _agentbox_editor_on %}
+        if podman container exists "agentbox-$name-editor"; then state="${state:+$state }editor"; fi
+{% endif %}
         if tmux has-session -t "=$(tmux_session "$name")" 2>/dev/null; then state="${state:+$state }tmux"; fi
         printf '%s%s\n' "$name" "${state:+  $state}"
     done
@@ -87,13 +99,27 @@ fi
 # server starts in a scope of the sandbox user's own systemd instance, which
 # lingers, not in the login session of whoever ran sudo, so a logout does
 # not take it along.
-if [ "${1:-}" = --tmux ]; then
+# The options, in any order, before the project.
+tmux=
+auto=
+editor_opt=
+while [ $# -gt 0 ]; do
+    case $1 in
+        --tmux) tmux=1 ;;
+        --auto) auto=1 ;;
+{% if _agentbox_editor_on %}
+        --editor | --no-editor) editor_opt=$1 ;;
+{% else %}
+        --no-editor) ;;
+        --editor) die "the editor is not installed; see agentbox_editor_accept_server_license" ;;
+{% endif %}
+        -*) die "$usage" ;;
+        *) break ;;
+    esac
     shift
-    inner=
-    if [ "${1:-}" = --auto ]; then
-        inner=--auto
-        shift
-    fi
+done
+
+if [ -n "$tmux" ]; then
     [ $# -ge 1 ] || die "$usage"
     project=$1
     shift
@@ -101,7 +127,7 @@ if [ "${1:-}" = --tmux ]; then
     [ -t 0 ] && [ -t 1 ] || die "--tmux needs a terminal; over SSH, use ssh -t"
     session=$(tmux_session "$project")
     if tmux has-session -t "=$session" 2>/dev/null; then
-        [ -z "$inner" ] && [ $# -eq 0 ] \
+        [ -z "$auto$editor_opt" ] && [ $# -eq 0 ] \
             || die "a session in $project is running already; attach with agentbox --tmux $project"
         exec tmux attach-session -t "=$session"
     fi
@@ -112,13 +138,7 @@ if [ "${1:-}" = --tmux ]; then
     fi
     exec systemd-run --user --scope --quiet --collect -- \
         tmux new-session -s "$session" -- \
-        {{ agentbox_launcher_path | quote }} ${inner:+"$inner"} "$project" "$@"
-fi
-
-auto=
-if [ "${1:-}" = --auto ]; then
-    auto=1
-    shift
+        {{ agentbox_launcher_path | quote }} ${editor_opt:+"$editor_opt"} ${auto:+--auto} "$project" "$@"
 fi
 
 [ $# -ge 1 ] || die "$usage"
@@ -138,6 +158,31 @@ if [ -z "$auto" ] && [ $# -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
 {%   endfor %}
     esac
 fi
+
+{% endif %}
+{% if _agentbox_editor_on %}
+# Whether this session gets an editor: as the option says; without one,
+{% if agentbox_editor | bool %}
+# for a session on a terminal that is not a -p run. Checked before --auto
+# turns the arguments into claude's.
+{% else %}
+# none (agentbox_editor is false).
+{% endif %}
+editor=
+case $editor_opt in
+    --editor) editor=1 ;;
+    --no-editor) ;;
+{% if agentbox_editor | bool %}
+    *)
+        if [ -t 0 ] && [ -t 1 ]; then
+            editor=1
+            for arg; do
+                case $arg in -p | --print) editor= ;; esac
+            done
+        fi
+        ;;
+{% endif %}
+esac
 
 {% endif %}
 # Autonomous: Claude Code without permission prompts. Extra arguments go to
@@ -189,7 +234,21 @@ rundir=
 # has returned. The session token goes on exit, whatever the cause. Output to
 # /dev/null and every command allowed to fail: the terminal may be gone, and
 # under set -e a failed write would end the trap before the stop.
+{% if _agentbox_editor_on %}
+editor_started=
+editor_name=agentbox-$project-editor
+editor_sockdir={{ agentbox_editor_run_dir | quote }}/$project
+editor_token=$XDG_RUNTIME_DIR/agentbox/editor/$project.token
+{% endif %}
 cleanup() {
+{% if _agentbox_editor_on %}
+    # The editor goes with the session, its socket and token with it: the
+    # socket file outlives the container, and would block the next start.
+    if [ -n "$editor_started" ]; then
+        podman stop --ignore --time 5 "$editor_name" >/dev/null 2>&1 || :
+        rm -rf "$editor_sockdir" "$editor_token" || :
+    fi
+{% endif %}
     if [ -n "$rundir" ]; then rm -rf "$rundir"; fi
 }
 on_signal() {
@@ -201,6 +260,68 @@ trap 'on_signal 129' HUP
 trap 'on_signal 130' INT
 trap 'on_signal 143' TERM
 
+{% if _agentbox_editor_on %}
+# The editor, started before the session so that the session's terminal is
+# not shared with its output. A failure costs the editor, not the session.
+if [ -n "$editor" ]; then
+    # Left over by a launcher that could not clean up: the session is not
+    # running (checked above), so neither should its editor be.
+    podman rm --force --ignore --time 5 "$editor_name" >/dev/null 2>&1 || :
+
+    # Fresh each start: the old socket goes with the directory. It inherits
+    # group {{ agentbox_editor_group }} and setgid from {{ agentbox_editor_run_dir }}; this
+    # user is not in that group, so a chmod would clear setgid: umask only.
+    rm -rf "$editor_sockdir"
+    (umask 007 && mkdir "$editor_sockdir")
+
+    # A fresh connection token per session, readable by this user only.
+    mkdir -p -m 0700 "${editor_token%/*}"
+    (umask 077 && od -An -tx1 -N24 /dev/urandom | tr -d ' \n' >"$editor_token")
+
+    # The editor's settings and state, kept per project. The machine settings
+    # are mounted read-only over the empty file; uploads the server refused
+    # are kept in CachedExtensionVSIXs, emptied here.
+    editor_state={{ _agentbox_editor_state_dir | quote }}/$project
+    mkdir -p -m 0700 "$editor_state"
+    mkdir -p "$editor_state/data/Machine"
+    [ -e "$editor_state/data/Machine/settings.json" ] || : >"$editor_state/data/Machine/settings.json"
+    rm -rf "$editor_state/data/CachedExtensionVSIXs"
+
+    editor_started=1
+    if podman image exists {{ _agentbox_editor_image | quote }} \
+        && podman run --detach --rm \
+            --name "$editor_name" \
+            --init \
+            --pull=never \
+            --memory={{ agentbox_editor_memory | quote }} --memory-swap={{ agentbox_editor_memory | quote }} \
+            --cpus={{ agentbox_editor_cpus | quote }} \
+            --pids-limit={{ agentbox_editor_pids_limit | quote }} \
+            --cap-drop=ALL \
+            --security-opt=no-new-privileges \
+            --userns=keep-id:uid={{ agentbox_image_uid }},gid={{ agentbox_image_uid }} \
+            --volume "$workdir:/work" --workdir /work \
+            --volume "$editor_state:{{ _agentbox_editor_data }}" \
+            --volume {{ (agentbox_editor_machine_settings_path ~ ':' ~ _agentbox_editor_data ~ '/data/Machine/settings.json:ro') | quote }} \
+            --volume "$editor_sockdir:/run/agentbox/editor" \
+            --volume "$editor_token:/run/agentbox/editor-token:ro" \
+            {{ _agentbox_editor_image | quote }} \
+            sh -c 'umask 007 && exec "$0" "$@"' \
+            {{ (_agentbox_editor_server ~ '/bin/code-server') | quote }} \
+            --socket-path /run/agentbox/editor/editor.sock \
+            --connection-token-file /run/agentbox/editor-token \
+            --accept-server-license-terms \
+            --disable-telemetry \
+            --server-data-dir {{ _agentbox_editor_data | quote }} \
+            --extensions-dir {{ _agentbox_editor_extensions | quote }} \
+            --default-folder /work \
+            >/dev/null; then
+        echo "agentbox: editor in $editor_name; from the controller: agentbox-remote --open-editor $project" >&2
+    else
+        echo "agentbox: the editor did not start; the session goes on without it" >&2
+    fi
+fi
+
+{% endif %}
 permanent_tokens=
 session_tokens=
 if [ -d "$permdir" ]; then

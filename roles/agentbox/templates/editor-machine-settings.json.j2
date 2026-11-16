@@ -1,0 +1,12 @@
+{#- The editor server's Machine settings, mounted read-only over
+    <server-data-dir>/data/Machine/settings.json: the user's own settings
+    cannot override them, and nothing in the container can rewrite them.
+    extensions.allowed stops a VSIX uploaded from the browser, which goes past
+    Squid; the read-only extensions directory stops every other install. -#}
+{{ {
+  'extensions.allowed': {'*': false},
+  'extensions.autoUpdate': false,
+  'extensions.autoCheckUpdates': false,
+  'update.mode': 'none',
+  'telemetry.telemetryLevel': 'off',
+} | to_nice_json(indent=2) }}

@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+# The editors' sockets, one directory per project, which the launcher creates
+# at each start. setgid, so each inherits the group: {{ sandbox_user }} writes as
+# the owner, sshd reaches the socket as the account in {{ agentbox_editor_group }}.
+d {{ agentbox_editor_run_dir }} 2770 {{ sandbox_user }} {{ agentbox_editor_group }} -

@@ -14,5 +14,6 @@
     _agentbox_projects_dir: "{{ getent_passwd[sandbox_user][4] }}/projects"
     _agentbox_state_dir: "{{ getent_passwd[sandbox_user][4] }}/.agentbox"
     _agentbox_token_dir: "{{ getent_passwd[sandbox_user][4] }}/{{ agentbox_token_dir_name }}"
+    _agentbox_editor_state_dir: "{{ getent_passwd[sandbox_user][4] }}/{{ agentbox_editor_state_dir_name }}"
     # tmpfs: never on disk, never in a snapshot, cleared by a reboot.
     _agentbox_session_token_dir: "/run/user/{{ getent_passwd[sandbox_user][1] }}/agentbox/tokens/session"
