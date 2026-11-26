@@ -3,8 +3,8 @@
 What is tested before a release, what the runs before `v0.1.0` covered
 and found, the first install of that release from GitHub, and the release
 tests of `v0.2.0` and `v0.3.0`, the tests of Claude Code 2.1.323
-before `v0.4.0`, the release test of `v0.4.0`, and the shortened release
-tests of `v0.5.0` and `v0.6.0`. The [README](../README.md) says how to use the collection,
+before `v0.4.0`, the release test of `v0.4.0`, the shortened release
+tests of `v0.5.0` and `v0.6.0`, and the release test of `v0.7.0`. The [README](../README.md) says how to use the collection,
 [docs/virtualbox.md](virtualbox.md) covers the VM, and
 [docs/design.md](design.md) why the sandbox is built the way it is.
 
@@ -46,6 +46,13 @@ led to.
   - [What it found](#what-it-found)
 - [The release test of v0.5.0](#the-release-test-of-v050)
 - [The release test of v0.6.0](#the-release-test-of-v060)
+- [The release test of v0.7.0](#the-release-test-of-v070)
+  - [Steps 1 to 9 on rt-vm](#steps-1-to-9-on-rt-vm)
+  - [Sessions under tmux, from the controller](#sessions-under-tmux-from-the-controller)
+  - [The editor](#the-editor)
+  - [The known-unknowns session](#the-known-unknowns-session)
+  - [Upgrade from v0.6.0](#upgrade-from-v060)
+  - [Findings and observations](#findings-and-observations)
 - [Not covered yet](#not-covered-yet)
 
 ---
@@ -661,31 +668,191 @@ so that line of the report did not show; it was tested on a stand-in host
 with a local connection, as were a role left out by `--tags` and a VM that
 is off.
 
+## The release test of v0.7.0
+
+On 2026-11-16, and the upgrade test on 2026-11-26, before `v0.7.0` was
+tagged, on `e7006a0`, "The editor: VS Code Server in a container beside
+each session (#15)", with Claude Code 2.1.323 in the image and VS Code
+1.146.0 (`6904719`) in the editor's. The full run again, for the first
+time since `v0.4.0`: the release changes the launcher and adds the editor.
+`ansible-lint` and `yamllint` passed on it, and every playbook passed
+`--syntax-check`. The collection was installed from a local clone with
+`git+file://…` and `--force`, with `-p` into the working directory, which
+`collections_path` in its `ansible.cfg` names; its roles, playbooks,
+`meta/` and `examples/` were identical to the commit's.
+
+### Steps 1 to 9 on rt-vm
+
+A new VM `rt-vm`, set up as for [v0.3.0](#the-run-on-a-vm-of-its-own):
+`examples/` copied in afresh from `e7006a0` and checked with `diff -r`,
+the host renamed, its own address (`.30`), MACs and key, and
+`agentbox_git_tokens` for step 5; the default size, 6 GB, for the first
+time since `v0.2.0`, since `sandbox-vm` was off; and
+`agentbox_editor_accept_server_license: true` in the group_vars, which the
+editor checks need.
+
+| # | Step | Result |
+|---|---|---|
+| 1 | `provision` | passes: `changed=15` in 2 min 37 s, cloud-init done; 6144 MB, 4 CPUs |
+| 2 | `sandbox`, first run | passes, both images built, in 5 min 51 s: `changed=43`, thirteen more than `v0.4.0`: the editor's group and its member, the tmpfiles entry, the socket directory, the build directory, the download, its Containerfile, its image, the machine settings, the state directory, `tmux`, and the stamp's directory and stamp. The editor image's check: "VS Code Server 1.146.0 (6904719), uid 1000, no extensions, read-only" |
+| 3 | `sandbox`, second run | `changed=0` |
+| 4 | Smoke tests from the README, word for word, as `agent` | all pass, with the values of the runs before and Claude Code 2.1.323; `~/projects` and `~/.agentbox` left empty. The launcher line runs without a terminal and starts no editor |
+| 5 | Repository tokens, for the private GitHub repository kept for tests, with a fine-grained token from a `pass`-backed credential helper on the controller, named by `credential.passEntry` in `git_config` | `git_token` wrote each project's token, `changed=2`, the token in neither log. **`session`, in `agentbox rt-s bash`**: clone, commit and push of a branch; the launcher named the token's host and lifetime; the only credential setting `credential.helper agentbox` from `/etc/gitconfig`, no token in the remote URL, no `~/.git-credentials`; the token gone after the session. With a new `session` token, the session started behind `ssh -tt` with `--no-editor`: the token on a read-only tmpfs, a write refused with `Read-only file system`, no file in `/work` or the home directory with a token prefix, a second start in the project refused with the token kept; after `kill -9` on the `ssh` client, container and token were gone at the first check, under 0.6 s with the round trip. **`permanent`, with Claude** (`agentbox --auto rt-p -p …`, cloning into a subdirectory, after a login in `agentbox rt-p`): clone, commit and `git push -u` of a branch through Claude's sandbox; the token's value in neither the state directory, the transcripts, `/work` nor the output; the upstream in `.git/config`, as in the release tests of `v0.3.0` and `v0.4.0`. Both branches deleted with `git push --delete` from a session; `remove` gave `changed=0` for `rt-s`, whose token the session had used up, and `changed=1` for `rt-p`; `~/projects`, `~/.agentbox` and `~/.agentbox-tokens` left empty |
+| 6 | `snapshot` take `base` | passes: `changed=5` in 1 min 16 s; the state file next to the inventory, the collection holds none |
+| 7 | take `pre-session`, restore `pre-session`, restore `base` | pass: `changed=3` each. `ssh` right after each connects. After `pre-session` only the marker written before it is there; after `base`, neither |
+| 8 | `sandbox` afterwards | `changed=0` |
+| 9 | `destroy --limit rt-vm -e destroy_confirm=yes` | passes in 8.8 s on the running VM with two snapshots, `base` and `pre-tests`: `changed=5`. No VM, no registered disk or DVD, no machine folder, no build artefacts; the base image cache stays. The state file then deleted by hand |
+
+The checks below ran on `rt-vm` between steps 8 and 9, from a snapshot
+`pre-tests`.
+
+### Sessions under tmux, from the controller
+
+With `examples/agentbox-remote` and `AGENTBOX_HOST=rt-vm`, through an
+`ssh` that read a scratch `ssh_config` naming the VM's address and key.
+`git_token` could not run then, the controller's GPG key being locked, so
+the project's `session` token was a dummy file written into the
+launcher's token directory: what the launcher does with it is the same.
+
+| Check | Result |
+|---|---|
+| `--tmux rt-s bash` | starts; the launcher's lines for the editor and the token in the pane; `--list` shows `rt-s  running editor tmux` |
+| A detach, then three times a reattach ended by `kill -9` on the `ssh` client | the session, its editor and an open editor tunnel held each time |
+| `loginctl terminate-user` for the account Ansible uses, every login of it | the session held; the tmux server and both containers' `conmon` in `user@1001.service`; a reattach afterwards worked |
+| The first disconnect of a new session, the case left unexplained in the editor's tests ([docs/design.md, "What is open"](design.md#what-is-open-1)) | eight new sessions, five with an editor and three with `--no-editor`, `kill -9` on the `ssh` client that started each, 1 to 10 s after the start: all eight kept running. Not reproduced |
+| Refusals while the tmux session runs | `--tmux` with a command, `--tmux --auto`, `--tmux --no-editor` and a plain start: each refused, the running editor untouched |
+| Refusals the other way round | a plain session running, then `--tmux`: refused, "outside tmux". `--tmux` without a terminal: refused, through `agentbox-remote` and on the VM |
+| `tmux kill-session` | the container stopped, then the editor, its socket directory and token, and the session token: all gone after 10 s, `podman stop`'s timeout, since bash in the pane ignores `SIGTERM` |
+| `my.app` | its own tmux session, `agentbox-my+app` |
+| `--tmux --auto probe -p '…'` with `'`, `"`, double spaces, `$HOME`, backticks and `\` | reached Claude unchanged: the user message in the transcript is the task byte for byte, JSON's escaping aside |
+
+### The editor
+
+With `agentbox_editor_accept_server_license: true`. The browser part was
+done by a person, in Chromium on the controller.
+
+| Check | Result |
+|---|---|
+| The first `sandbox` run, then the second | the editor image built and its check passed; `changed=0` (steps 2 and 3) |
+| When a session gets one | a plain session on a terminal: the editor's line; `--no-editor`: none; a `-p` run and an `--auto -p` run on a terminal: none; `--editor` without a terminal: one, gone with the session |
+| `agentbox-remote --open-editor rt-s` | prints the URL with a 48-digit token and holds the tunnel. With `curl`: no token or a wrong one 403; the token 302 with a cookie, then 200, the workbench opening `/work`. In the browser, two projects each opened `/work` with their files |
+| "Install from VSIX" in the browser, with a do-nothing extension built locally | refused: "This extension cannot be installed because it is not in the allowed list"; the extensions directory still holds only the empty `extensions.json`. The upload did not stay in `data/CachedExtensionVSIXs/`, unlike in the editor's tests |
+| The session's end (`exit` in the pane), `tmux kill-session`, `SIGTERM` to the launcher | each stopped the editor and removed its socket directory and token |
+| Two projects with editors, each with a workbench open in a browser tab | 392 MB and 68 processes for the one with the refused upload, 343 MB and 68 for the other; `available` from 5260 to 4636 MB of 5931 when the two workbenches loaded, no swap. Without a browser connected, about 64 MB and 13 processes each |
+| `sandbox` with the licence set back to `false`, then again | `changed=3`: the editor's files, its group, the launcher; then `changed=0`. The image stays. `--editor` refused, "the editor is not installed"; `--no-editor` works. [Finding 1](#findings-and-observations) |
+
+The licence was set back to `true` and `pre-tests` restored before the
+next part.
+
+### The known-unknowns session
+
+The [known unknowns](design.md#how-they-were-tested), from the plan
+word for word, with the editor installed, the canary in the launcher and
+a Pro login in `probe` and `probe2`.
+
+| Part | Result |
+|---|---|
+| The canary | `--check --diff`: only the launcher, one `--env` line, `changed=1`; applied, `changed=1`; removed afterwards, `changed=1`, `grep -c` `0`, and `sandbox` `changed=0` |
+| E1 to E5 | as on 2026-10-31 and 2026-11-14: the canary in a command's environment; `/proc/1/environ` and `/proc/2/environ` denied, only `/proc/self/environ` has it; the Read tool refuses `/proc`; every command line readable, the `-p` prompt included, and `bwrap`'s still carries the credentials of Claude Code's own proxy on `localhost:3128`. The canary landed in two transcripts. New: `grep` in the inner sandbox reports as `ugrep` |
+| Error reporting's switch | 2.1.323 knows `DISABLE_ERROR_REPORTING` |
+| Two sessions at once | both cloned and installed, exit codes 0; lowest `available` 4895 of 5931 MB, peaks about 263 and 254 MB, no swap, no OOM kill |
+| A mod Claude writes | in `--auto`: not among the plugins of the second turn, no file written. In auto mode, three Shift+Tabs from manual mode in a plain session driven through tmux: Claude wrote the mod; it did not load, no file written |
+| The Squid log | reached: `api.anthropic.com`, `mcp-proxy.anthropic.com`, `platform.claude.com`, `github.com`, `raw.githubusercontent.com`, `registry.npmjs.org`; denied: only `downloads.claude.ai`; no telemetry or error-reporting host attempted |
+
+### Upgrade from v0.6.0
+
+On 2026-11-26, on `sandbox-vm`, every command typed by a person. The VM
+ran `e7006a0` already, deployed from a working tree with the stamp at
+0.6.0, so it was first taken back: a snapshot `pre-v070` of that state
+(`changed=4`), then `restore` of `base`, a VM from `v0.2.0` (`changed=3`).
+`base` came back with 6144 MB, the memory it had when it was taken; after
+a clean shutdown `provision` applied the 4096 MB of its host_vars
+(`changed=4`). Its two links and `sandbox_image_tag: "0.4.0-cc2.1.323"`
+stayed as they were.
+
+| Step | Result |
+|---|---|
+| `update_check`, the installed `v0.6.0` | "No stamp on this VM", "Run sandbox once"; no release listed, since without a stamp there is no starting point; `agentbox-remote` on the controller current |
+| `sandbox`, the installed `v0.6.0` | `changed=13`: the image `0.4.0-cc2.1.323` built, the peer broker for the two links, the managed settings, `tmux`, the launcher, the stamp; then `changed=0`. Now a VM of `v0.6.0` |
+| `update_check`, the release's tree | the entry for 0.7.0: run `sandbox --tags agentbox`, the nine new variables, `agentbox_editor_accept_server_license` set in the inventory and the others not, `agentbox-remote` changed; no image line; "To apply: snapshot the VM, then run sandbox --check --diff, then sandbox". On the controller `agentbox-remote` differs |
+| `sandbox --check --diff` | `changed=8`, all in `agentbox`, as CHANGES.md says: the editor's group, tmpfiles entry, build directory, Containerfile, machine settings and state directory, the launcher, and the stamp from 0.6.0 to 0.7.0. The group member, the socket directory and the download skipped in check mode, since their group or directory is not there yet; the editor image build not shown ([finding 3](#findings) of `v0.2.0`). The session image not rebuilt: its recipe hash unchanged by the move to `tasks/image.yml` |
+| `sandbox` | `changed=12`: the eight, and the four check mode skipped; the editor image's check passed, and the session image "matches the recipe" |
+| `sandbox`, again | `changed=0` |
+| `update_check` | "Up to date: nothing to run."; `agentbox-remote` on the controller still differs, until `install_scripts=true` |
+
+"The release's tree" was the working tree after `e7006a0` with the entry
+for 0.7.0 in `meta/updates.yml` and, in the installed copy only,
+`galaxy.yml` at 0.7.0, installed with `-p` into a scratch directory named
+by `ANSIBLE_COLLECTIONS_PATH`; its roles, playbooks, `meta/` and
+`examples/` were identical to that tree's. The VM was kept, now at 0.7.0.
+
+### Findings and observations
+
+One finding, in the docs; nothing in the code.
+
+1. **The editor with the licence set back to `false` kept its state
+   directory.** `sandbox` removed the editor's files and group, and left
+   `~agent/.agentbox-editor`, the editors' settings and state, as it
+   leaves Claude Code's in `~agent/.agentbox`. CHANGES.md said the role
+   then removes everything but the image, and the defaults comment much
+   the same. The role's behaviour is the one wanted; the wording was
+   corrected, and the README's "The editor" now says what such a run
+   removes and what stays.
+
+Worth knowing:
+
+1. **The host's disk.** After step 3 the home partition of the host had
+   1.7 GB left, with `rt-vm`'s disk at 9 GB and growing; the run waited
+   until space was freed. The VM's dynamic disk never gives freed blocks
+   back: on `sandbox-vm` the differencing image below `pre-v070` was
+   16 GB, with 7.3 GB in use in the guest. Issue #16.
+2. **A `restore` brings back the VM's settings**, memory and CPUs among
+   them: `base` came back with 6 GB. The README and
+   [docs/virtualbox.md](virtualbox.md#behaviour-notes) say so now, and
+   that `restore` works on a running VM.
+3. **`tmux kill-session` takes up to 10 s** with a shell in the pane,
+   which ignores `SIGTERM`, until `podman stop` kills it; everything is
+   cleaned up then.
+4. **The upload refused by "Install from VSIX" did not stay** in
+   `data/CachedExtensionVSIXs/`, where the editor's tests found it; the
+   launcher's emptying it at start is the fallback.
+5. **`sudo -iu agent` parses a command again:** a test command typed
+   through it lost a `$i` to the login shell, as the README warns under
+   "From the controller". Not the collection's; the tests went on from
+   script files.
+6. Also from the run, in the docs: "Updating the collection" runs what
+   `update_check`'s "To apply" names, no longer `provision` every time,
+   and ends with `update_check` again; issue #17 for a playbook that
+   stops the VM.
+
 ## Not covered yet
 
 - Heavier work in two concurrent sessions, and whether Claude Code
   withholds `ANTHROPIC_API_KEY` from its commands by name; see the
   README's [Open questions](../README.md#open-questions).
 - Repository tokens: a push to a protected branch, which tests the remote,
-  not the collection; `SIGINT` and `SIGTERM` to the launcher on the VM in
-  a release test, tested only outside one
-  ([docs/design.md, "Sessions that outlive the connection"](design.md#sessions-that-outlive-the-connection));
+  not the collection; `SIGINT` to the launcher on the VM in a release
+  test, tested only outside one
+  ([docs/design.md, "Sessions that outlive the connection"](design.md#sessions-that-outlive-the-connection)),
+  while `SIGTERM` was tested in the
+  [release test of v0.7.0](#the-editor); a `session` token from
+  `git_token` under `--tmux`: that release test used a file put in its
+  place;
   a self-hosted GitLab in a
   release test, tested only by hand
   ([docs/design.md, "What was tested"](design.md#what-was-tested)).
 - A linked session under `--tmux`.
 - The editor under load: two projects with language servers and builds;
   whether every built-in extension activates under
-  `extensions.allowed: {"*": false}`; the one `--tmux` disconnect that
-  left nothing behind in the editor's tests
-  ([docs/design.md, "What is open"](design.md#what-is-open-1)).
-- `update_check` on a VM that a release with a role change left behind,
-  and its line on the variables `examples/` sets, on a real inventory:
-  the [release test of v0.6.0](#the-release-test-of-v060) had neither.
-- The full run of steps 1 to 9 on the playbooks of `v0.6.0`:
-  [skipped](#the-release-test-of-v060).
-- The full run of steps 1 to 9, and the known-unknowns session, on the
-  launcher of `v0.5.0`: [skipped](#the-release-test-of-v050).
+  `extensions.allowed: {"*": false}`; why one `--tmux` disconnect left
+  nothing behind in the editor's tests, which twelve disconnects in the
+  [release test of v0.7.0](#sessions-under-tmux-from-the-controller) did
+  not reproduce ([docs/design.md, "What is open"](design.md#what-is-open-1));
+  a browser other than Chromium.
+- `update_check`'s line on the variables `examples/` sets, on a real
+  inventory: every inventory tested so far set them all. A VM without a
+  stamp and an upgrade with a role change were tested in the
+  [release test of v0.7.0](#upgrade-from-v060).
 - Linked sessions: a broker restart with sessions open, and logins other
   than Pro, which probably need `channelsEnabled: true`
   ([docs/design.md, "What is open"](design.md#what-is-open)).

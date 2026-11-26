@@ -1286,7 +1286,7 @@ hand, then the role and the launcher from the working tree.
 | Start without network | `code-server` with the options above serves the workbench; Squid saw one denied request, `main.vscode-cdn.net`, and none for the Marketplace |
 | The token | none or a wrong one: 403; the right one: 302 with a cookie, then 200; `/work` opens by default |
 | The socket | `agent:agentbox-editor` 0770; the account Ansible uses connects, also through `ssh -L` from the controller |
-| A VSIX uploaded from the browser | refused: "This extension cannot be installed because it is not in the allowed list"; the file stays in `data/CachedExtensionVSIXs/`, which the launcher empties at start |
+| A VSIX uploaded from the browser | refused: "This extension cannot be installed because it is not in the allowed list"; the file stays in `data/CachedExtensionVSIXs/`, which the launcher empties at start. In the release test of `v0.7.0` it did not stay |
 | The server's `--install-extension` from inside | ignores `extensions.allowed`: installs into a writable directory, which the server does not load; into `/opt/vscode-extensions`, refused |
 | The machine settings from inside | "Read-only file system" |
 | What the container gets | `/work`, its state, its socket directory, token and machine settings read-only; no capabilities; 1 GiB, 1.0 CPU, 256 processes |
@@ -1310,7 +1310,10 @@ variable.
   built-in extension still activates was not checked one by one.
 - **The first disconnect of a `--tmux` session** in the tests left nothing
   behind; two repeats, with and without the editor, kept the session.
-  Not explained.
+  Not explained, and not reproduced since: in the
+  [release test of v0.7.0](release-tests.md#sessions-under-tmux-from-the-controller)
+  eight new sessions survived their first disconnect, and one survived
+  four more.
 
 ---
 

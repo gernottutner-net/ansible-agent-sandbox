@@ -14,6 +14,39 @@
 #   scripts:    controller scripts from examples/ that are new or changed
 #   note:       anything else, in one or two sentences
 releases:
+  - version: "0.7.0"
+    run:
+      - playbook: sandbox
+        tags: [agentbox]
+        note: >-
+          installs the launcher with the editor and the new option parsing;
+          with agentbox_editor_accept_server_license true, also the editor
+    image: false
+    variables:
+      - name: agentbox_editor_accept_server_license
+        about: accepts Microsoft's VS Code Server licence and installs the editor; off by default
+      - name: agentbox_editor
+        about: whether a session on a terminal starts an editor unless told otherwise
+      - name: agentbox_editor_vscode_version
+        about: the pinned VS Code Server build, with _commit and _sha256
+      - name: agentbox_editor_vscode_commit
+        about: the commit of that build
+      - name: agentbox_editor_vscode_sha256
+        about: its SHA-256, from Microsoft's update API
+      - name: agentbox_editor_image_tag
+        about: the editor image's tag; a changed recipe needs a new one
+      - name: agentbox_editor_memory
+        about: the editor container's memory limit
+      - name: agentbox_editor_cpus
+        about: the editor container's CPU limit
+      - name: agentbox_editor_pids_limit
+        about: the editor container's process limit
+    scripts: [agentbox-remote]
+    note: >-
+      The editor, VS Code for the browser beside each session, opt-in by the
+      licence; agentbox-remote --open-editor opens it from the controller.
+      The session image is unchanged, so no new sandbox_image_tag.
+
   - version: "0.6.0"
     run:
       - playbook: sandbox

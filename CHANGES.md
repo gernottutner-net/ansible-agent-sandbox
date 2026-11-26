@@ -7,8 +7,13 @@ level.
 
 ### 2026-11-26
 
+#### Added
+
+- `meta/updates.yml`: the entry for 0.7.0, for `update_check`: `sandbox --tags agentbox`, no image change, the nine new editor variables, `agentbox-remote` changed.
+
 #### Changed
 
+- `docs/release-tests.md`: new section "The release test of v0.7.0", in the table of contents and the intro: steps 1 to 9 on a VM of its own, the checks of `--tmux` and `agentbox-remote`, of the editor and the known-unknowns session, and the upgrade test from `v0.6.0` on a VM taken back to `v0.6.0` first; "Not covered yet" drops the skipped full runs of `v0.5.0` and `v0.6.0` and `update_check`'s untested cases, and names `SIGINT`, a `git_token` session token under `--tmux`, `update_check`'s line on unset variables and a browser other than Chromium. `docs/design.md`, "The editor": the refused VSIX did not stay in the release test, and the unexplained `--tmux` disconnect was not reproduced in it.
 - The editor with `agentbox_editor_accept_server_license` set back to `false`: the role keeps the editors' settings and state in `~agent/.agentbox-editor`, as it keeps Claude Code's in `~agent/.agentbox`, but the defaults comment and the entry of 2026-11-16 said it removes everything but the image. Both corrected; the README's "The editor" says what such a run removes and what stays (found in the release test of v0.7.0).
 - README, "Updating the collection", step 5: run what `update_check`'s "To apply" line names, in order, usually `sandbox --check --diff`, then `sandbox`; no longer `provision` every time. It was in the step since before `update_check` existed, as a catch-all; now `meta/updates.yml` lists it only for 0.3.0, and on a running VM, which step 4 needs, it changes nothing. A new step 6: `update_check` afterwards reports "Up to date", and `-e install_scripts=true` replaces a controller script it reports as different.
 - README, "Snapshots and teardown": `restore` works on a running VM, powering it off hard and starting it again; a VM that is off stays off, with a link to "Starting and stopping the VM"; a restore brings back the memory and CPUs the VM had then, with a link to "Tuning the VM". `docs/virtualbox.md`, "Behaviour notes": the same about the settings, and that the next `provision` with the VM off applies the variables again (seen 2026-11-26: a `base` from 6 GB came back with 6 GB).
