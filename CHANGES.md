@@ -5,6 +5,12 @@ level.
 
 ## [Unreleased]
 
+### 2026-11-26
+
+#### Changed
+
+- README, "Snapshots and teardown": `restore` works on a running VM, powering it off hard and starting it again; a VM that is off stays off, with a link to "Starting and stopping the VM"; a restore brings back the memory and CPUs the VM had then, with a link to "Tuning the VM". `docs/virtualbox.md`, "Behaviour notes": the same about the settings, and that the next `provision` with the VM off applies the variables again (seen 2026-11-26: a `base` from 6 GB came back with 6 GB).
+
 ### 2026-11-16
 
 #### Added

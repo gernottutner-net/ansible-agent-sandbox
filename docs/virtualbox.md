@@ -230,6 +230,10 @@ For the original pristine state, don't re-baseline: `destroy`, then
 - `take` without `snapshot_name` generates `auto-YYYYmmdd-HHMMSS`.
 - `restore` and `delete` need an explicit `snapshot_name`.
 - `restore` powers a running VM off first and restarts it afterwards.
+- `restore` also brings back the VM's settings from when the snapshot was
+  taken, its memory and CPUs among them: a `base` taken at 6 GB comes back
+  with 6 GB, whatever `vm_memory_mb` says now. The next `provision` that
+  finds the VM off applies the variables again.
 - Both `take` and `restore` return only once a VM they restarted answers
   over SSH again, within `vm_boot_timeout` (300 s by default). A VM that
   was off stays off and is not waited for.
