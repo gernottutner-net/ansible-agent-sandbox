@@ -9,6 +9,7 @@ level.
 
 #### Changed
 
+- README, "Updating the collection", step 5: run what `update_check`'s "To apply" line names, in order, usually `sandbox --check --diff`, then `sandbox`; no longer `provision` every time. It was in the step since before `update_check` existed, as a catch-all; now `meta/updates.yml` lists it only for 0.3.0, and on a running VM, which step 4 needs, it changes nothing. A new step 6: `update_check` afterwards reports "Up to date", and `-e install_scripts=true` replaces a controller script it reports as different.
 - README, "Snapshots and teardown": `restore` works on a running VM, powering it off hard and starting it again; a VM that is off stays off, with a link to "Starting and stopping the VM"; a restore brings back the memory and CPUs the VM had then, with a link to "Tuning the VM". `docs/virtualbox.md`, "Behaviour notes": the same about the settings, and that the next `provision` with the VM off applies the variables again (seen 2026-11-26: a `base` from 6 GB came back with 6 GB).
 
 ### 2026-11-16

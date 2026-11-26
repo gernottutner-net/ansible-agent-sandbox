@@ -160,12 +160,27 @@ A new release is installed the same way, over the old one:
    ansible-playbook tutner.agent_sandbox.update_check
    ```
 
-5. See what it would change on the VM, then apply it:
+5. Run what the report's line "To apply" names, in that order. Usually that
+   is `sandbox`: see what it would change on the VM, then apply it:
 
    ```bash
-   ansible-playbook tutner.agent_sandbox.provision
    ansible-playbook tutner.agent_sandbox.sandbox --check --diff
    ansible-playbook tutner.agent_sandbox.sandbox
+   ```
+
+   `provision` is needed only when a release lists it, as 0.3.0 did to
+   apply `vm_memory_mb` and `vm_cpus`, which it does only to a VM it finds
+   off; its note in the report says so. On a running VM, `provision`
+   changes nothing. "Up to date: nothing to run." means there is nothing to
+   apply.
+
+6. Check: `update_check` now reports "Up to date" for the VM. A controller
+   script it reports as different, such as `agentbox-remote`, stays so
+   until `update_check -e install_scripts=true` replaces it, with a backup
+   of your copy.
+
+   ```bash
+   ansible-playbook tutner.agent_sandbox.update_check -e install_scripts=true
    ```
 
 From a Git URL, `ansible-galaxy` installs every time, also an older tag
