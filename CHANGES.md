@@ -5,6 +5,8 @@ level.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-26 — The Editor
+
 ### 2026-11-26
 
 #### Added
@@ -13,6 +15,7 @@ level.
 
 #### Changed
 
+- `galaxy.yml` and the README's pinned install examples at `v0.7.0`.
 - `.claude/CLAUDE.md`: commit messages carry the `Co-Authored-By` trailer as their only attribution: no `Claude-Session:` trailer or other session link, which Claude Code's instructions began to ask for; the repository is public, and the link points into a private account. Release proposals: every commit proposal says whether a release is due, by dev/releasing.md, and if so proposes the version, a short release name drawn from the change and the tag message, which I accept, rename or decline; a proposal is not a cut. A release's name is the one accepted or renamed from a proposal, or given with the request, and without one the bare version.
 - `docs/release-tests.md`: new section "The release test of v0.7.0", in the table of contents and the intro: steps 1 to 9 on a VM of its own, the checks of `--tmux` and `agentbox-remote`, of the editor and the known-unknowns session, and the upgrade test from `v0.6.0` on a VM taken back to `v0.6.0` first; "Not covered yet" drops the skipped full runs of `v0.5.0` and `v0.6.0` and `update_check`'s untested cases, and names `SIGINT`, a `git_token` session token under `--tmux`, `update_check`'s line on unset variables and a browser other than Chromium. `docs/design.md`, "The editor": the refused VSIX did not stay in the release test, and the unexplained `--tmux` disconnect was not reproduced in it.
 - The editor with `agentbox_editor_accept_server_license` set back to `false`: the role keeps the editors' settings and state in `~agent/.agentbox-editor`, as it keeps Claude Code's in `~agent/.agentbox`, but the defaults comment and the entry of 2026-11-16 said it removes everything but the image. Both corrected; the README's "The editor" says what such a run removes and what stays (found in the release test of v0.7.0).
