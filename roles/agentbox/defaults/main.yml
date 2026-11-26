@@ -132,8 +132,9 @@ agentbox_launcher_path: /usr/local/bin/agentbox
 # same /work: see docs/design.md, "The editor". Microsoft's VS Code Server
 # licence (https://aka.ms/vscode-server-license) applies: one user, your own
 # use, no sharing. Setting this to true accepts it; until then nothing of the
-# editor is downloaded, built or installed, and a run with false removes it
-# again (the image stays in storage, like every old tag).
+# editor is downloaded, built or installed, and a run with false removes its
+# files and group again. The image stays in storage, like every old tag, and so
+# do the editors' settings and state in ~<sandbox_user>/.agentbox-editor.
 agentbox_editor_accept_server_license: false
 
 # With the editor installed: whether a session starts one unless told

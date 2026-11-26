@@ -607,6 +607,11 @@ then on a session started on a terminal gets an editor and says so:
 agentbox: editor in agentbox-<project>-editor; from the controller: agentbox-remote --open-editor <project>
 ```
 
+Set back to `false`, the next `sandbox --tags agentbox` removes the
+editor's files and group. The image stays, like every old tag, and so do
+the editors' settings and state in `~agent/.agentbox-editor`; delete them
+by hand if you do not want them back.
+
 On the controller, with [`agentbox-remote`](#from-the-controller):
 
 ```bash
